@@ -11,7 +11,8 @@ from pyspark.sql.types import BinaryType, TimestampType, StructType, StructField
 from conf.settings import KEBAB_STORM_LOGGING_LOCATION, SPARK_MASTER, SPARK_CONFIG, DEFAULT_DATA_LOCATION
 from etl.crypter import execute_crypto_action
 from etl.refiner import validate_and_refine
-from util.constants import DAY_PARTITION_FIELD_NAME, DATE_IMPORTED_FIELD_NAME, SOFT_DELETED_FIELD_NAME, YEAR_IMPORTED_FIELD_NAME
+from util.constants import DAY_PARTITION_FIELD_NAME, DATE_IMPORTED_FIELD_NAME, SOFT_DELETED_FIELD_NAME, \
+    YEAR_IMPORTED_FIELD_NAME
 from util.crypto.crypto_action import CryptoAction
 from util.crypto.crypto_util import generic_decrypt_udf, generic_encrypt_udf
 from util.etl_util import generic_cast_map_as, generic_soft_delete_udf, get_day_partition_name_and_year
@@ -30,9 +31,7 @@ spark_session = SparkProvider.setup_spark('Project: Kebab Storm', SPARK_MASTER,
                                           extra_dependencies=[], conf=SparkConf().setAll(SPARK_CONFIG))
 
 
-def get_reporting_data \
-                (scenario_json_path: str, crypto_action: CryptoAction, include_soft_deleted: bool, day) -> DataFrame:
-
+def get_reporting_data(scenario_json_path: str, crypto_action: CryptoAction, incl_soft_deleted: bool, day) -> DataFrame:
     name, save_location, temp_save_location, save_type, import_mode, id_field_name, delimiter, hard_delete_in_years, \
         enforce_data_model, is_apply_year_to_save_location = get_scenario_defaults(scenario_json_path)
 
@@ -54,7 +53,7 @@ def get_reporting_data \
         return spark_session.createDataFrame(spark_session.sparkContext.emptyRDD,
                                              StructType([StructField("no data", StringType(), True)]))
 
-    if not include_soft_deleted:
+    if not incl_soft_deleted:
         data = data.where(f'{SOFT_DELETED_FIELD_NAME} IS NULL')
 
     return data if crypto_action == CryptoAction.encrypt else execute_crypto_action(data, scenario_json_path,
@@ -82,9 +81,9 @@ def hard_delete(scenario_json_path):
             else:
                 all_data = read_spark_parquet(spark_session, f'{save_location}_{year}')
 
-    if all_data.rdd.isEmpty():
+    if all_data is None or all_data.rdd.isEmpty():
         logger.error(f'No data found')
-        return
+        exit(1)
 
     all_data = all_data.withColumn(
         DAY_PARTITION_FIELD_NAME, func.col(DATE_IMPORTED_FIELD_NAME))
@@ -95,7 +94,7 @@ def hard_delete(scenario_json_path):
             func.lit(x_years_ago.strftime('%Y-%m-%d %H:%M:%S'))).cast(TimestampType()))
 
     if soft_deleted_data.rdd.isEmpty():
-        logger.error(f'No data found for earlier than {x_years_ago.strftime("%Y-%m-%d")}')
+        logger.warning(f'No data found for earlier than {x_years_ago.strftime("%Y-%m-%d")}')
         return
 
     logger.info(f'Total count for soft deleted data earlier than {x_years_ago.strftime("%Y-%m-%d")} is '
@@ -154,6 +153,7 @@ def hard_delete(scenario_json_path):
     else:
         logger.error(f'Save mode {save_type} is not identified for {name} '
                      f'entity. Please check scenario JSON located in {scenario_json_path}.')
+        exit(1)
 
 
 def soft_delete(scenario_json_path, id_value_to_soft_delete):
@@ -276,6 +276,7 @@ def soft_delete(scenario_json_path, id_value_to_soft_delete):
     else:
         logger.error(f'Save mode {save_type} is not identified for {name} '
                      f'entity. Please check scenario JSON located in {scenario_json_path}.')
+        exit(1)
 
 
 def encrypt_and_import(scenario_json_path: str, input_file_path: str, day):
@@ -291,13 +292,13 @@ def encrypt_and_import(scenario_json_path: str, input_file_path: str, day):
     raw_data = spark_session.read.option('delimiter', delimiter).csv(input_file_path, inferSchema=True, header=True)
     if raw_data.rdd.isEmpty():
         logger.error(f'No data found in {input_file_path}')
-        return
+        exit(1)
 
     if enforce_data_model:
         missing_fields = get_missing_fields(scenario_json_path, raw_data)
         if missing_fields:
             logger.error(f'Following field(s) are missing in the scenario file: {missing_fields}')
-            return
+            exit(1)
 
     logger.info(f'Raw data loaded from {input_file_path} for {name} entity')
 
@@ -336,4 +337,4 @@ def encrypt_and_import(scenario_json_path: str, input_file_path: str, day):
     else:
         logger.error(f'Save mode {save_type} is not identified for {name} '
                      f'entity. Please check scenario JSON located in {scenario_json_path}.')
-        return
+        exit(1)
