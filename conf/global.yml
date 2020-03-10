@@ -1,0 +1,2 @@
+# only accepts local | prod | dev (see dir structure in conf)
+default_environment: local
