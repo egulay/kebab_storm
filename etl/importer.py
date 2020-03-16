@@ -304,7 +304,7 @@ def encrypt_and_import(scenario_json_path: str, input_file_path: str, day):
 
     spark_session.sparkContext.setJobDescription(f'Encrypt & import for {name} - data refinement')
     refined_df = validate_and_refine(scenario_json_path, raw_data, partition_name)
-    logger.info(f'Data refined and validated for {name} entity')
+    logger.info(f'Data refinement and validation applied for {name} entity')
 
     spark_session.sparkContext.setJobDescription(f'Encrypt & import for {name} - apply encryption')
     encrypted_df = execute_crypto_action(refined_df, scenario_json_path, CryptoAction.encrypt)
