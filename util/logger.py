@@ -1,10 +1,7 @@
 import logging
 import os
 
-from conf.settings import ACTIVE_PROFILE
-
-
-def get_logger(name, path, file_name):
+def get_logger(name, path, file_name, active_profile):
     if not os.path.exists(path):
         os.makedirs(path)
 
@@ -16,7 +13,7 @@ def get_logger(name, path, file_name):
     file_handler.setFormatter(formatter)
     logger.addHandler(file_handler)
 
-    if str(ACTIVE_PROFILE) == 'local' or str(ACTIVE_PROFILE) == 'dev':
+    if str(active_profile) == 'local' or str(active_profile) == 'dev':
         console_handler = logging.StreamHandler()
         console_handler.setFormatter(formatter)
         logger.addHandler(console_handler)

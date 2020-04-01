@@ -5,14 +5,14 @@ from dateutil.parser import parse as dt_parse
 from pyspark.sql import DataFrame, SparkSession
 from pyspark.sql.types import StructType, StructField, StringType
 
-from conf.settings import KEBAB_STORM_LOGGING_LOCATION, DEFAULT_DATA_LOCATION
+from conf import settings
 from util.constants import DAY_PARTITION_FIELD_NAME, EXCEPTION_TEMPLATE
 from util.logger import get_logger
 from util.parquet_save_mode import ParquetSaveMode
 from util.type_checkers import is_timestamp
 
-logger = get_logger(__name__, KEBAB_STORM_LOGGING_LOCATION,
-                    f'{datetime.today().strftime("%Y-%m-%d")}.log')
+logger = get_logger(__name__, settings.logging_location,
+                    f'{datetime.today().strftime("%Y-%m-%d")}.log', settings.active_profile)
 
 
 def write_spark_parquet(source: DataFrame, save_path: str, save_mode: ParquetSaveMode, *partition_by):
@@ -112,32 +112,34 @@ def hdfs_rename_or_move(session: SparkSession, source_path: str, destination_pat
 def hdfs_get_folder_names(session: SparkSession, scenario_save_location):
     fs = session.sparkContext._jvm.org.apache.hadoop.fs.FileSystem.get(
         session.sparkContext._jsc.hadoopConfiguration())
-    statuses = fs.listStatus(session.sparkContext._gateway.jvm.org.apache.hadoop.fs.Path(DEFAULT_DATA_LOCATION))
+    statuses = fs.listStatus(session.sparkContext._gateway.jvm.org.apache.hadoop.fs.Path(settings.default_data_location))
 
     result = [item.getPath().getName() for item in statuses if
               item.isDirectory() and str(item.getPath().getName()).strip().startswith(
-                  str(scenario_save_location.replace(DEFAULT_DATA_LOCATION, '').replace('/', '')).strip())]
+                  str(scenario_save_location.replace(settings.default_data_location, '').replace('/', '')).strip())]
     return result
 
 
 def hdfs_get_folder_years(session: SparkSession, scenario_save_location):
     fs = session.sparkContext._jvm.org.apache.hadoop.fs.FileSystem.get(
         session.sparkContext._jsc.hadoopConfiguration())
-    statuses = fs.listStatus(session.sparkContext._gateway.jvm.org.apache.hadoop.fs.Path(DEFAULT_DATA_LOCATION))
+    statuses = fs.listStatus(session.sparkContext._gateway.jvm.org.apache.hadoop.fs.Path())
 
     result = [str(item.getPath().getName()).split('_')[-1] for item in statuses if
               item.isDirectory() and str(item.getPath().getName()).strip().startswith(
-                  str(scenario_save_location.replace(DEFAULT_DATA_LOCATION, '').replace('/', '')).strip())]
+                  str(scenario_save_location.replace(settings.default_data_location, '').replace('/', '')).strip())]
     return result
 
 
 def hdfs_get_folder_years_less_than(session: SparkSession, scenario_save_location, less_than_year: int):
     fs = session.sparkContext._jvm.org.apache.hadoop.fs.FileSystem.get(
         session.sparkContext._jsc.hadoopConfiguration())
-    statuses = fs.listStatus(session.sparkContext._gateway.jvm.org.apache.hadoop.fs.Path(DEFAULT_DATA_LOCATION))
+    statuses = fs.listStatus(
+        session.sparkContext._gateway.jvm.org.apache.hadoop.fs.Path(settings.default_data_location))
 
     result = [str(item.getPath().getName()).split('_')[-1] for item in statuses if
               item.isDirectory() and str(item.getPath().getName()).strip().startswith(
-                  str(scenario_save_location.replace(DEFAULT_DATA_LOCATION, '').replace('/', '')).strip()) and int(
+                  str(scenario_save_location.replace(settings.default_data_location, '').replace('/',
+                                                                                                 '')).strip()) and int(
                   str(item.getPath().getName()).split('_')[-1]) <= less_than_year]
     return result

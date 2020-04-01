@@ -1,7 +1,8 @@
 import json
 
 from pyspark.sql import DataFrame
-from conf.settings import DEFAULT_DATA_LOCATION
+
+from conf import settings
 from util.constants import FIELD_NAME, FIELD_IS_ENCRYPTED, FIELD_ENCRYPTION_KEY, FIELD_TYPE, FIELDS, FIELD_MAP_AS, \
     SCENARIO_DEFAULT_SAVE_LOCATION, SCENARIO_DEFAULT_SAVE_TYPE, SCENARIO_DELIMITER, \
     SCENARIO_ENTITY_NAME, SCENARIO_ID_FIELD, SCENARIO_TEMP_SAVE_LOCATION, SCENARIO_DEFAULT_IMPORT_MODE, \
@@ -34,7 +35,16 @@ def get_scenario_defaults(scenario_json_path):
     is_apply_year_to_save_location = get_is_apply_year_to_save_location(scenario)
 
     del scenario
-    return name, save_location, temp_save_location, save_type, import_mode, id_field_name, delimiter, hard_delete_in_years, enforce_data_model, is_apply_year_to_save_location
+    return name, \
+           save_location, \
+           temp_save_location, \
+           save_type, \
+           import_mode, \
+           id_field_name, \
+           delimiter, \
+           hard_delete_in_years, \
+           enforce_data_model, \
+           is_apply_year_to_save_location
 
 
 def load_scenario(path):
@@ -55,7 +65,7 @@ def get_delimiter(scenario_json):
 
 
 def get_default_save_location(scenario_json):
-    return f'{DEFAULT_DATA_LOCATION}{str(scenario_json[SCENARIO_DEFAULT_SAVE_LOCATION])}'
+    return f'{settings.default_data_location}{str(scenario_json[SCENARIO_DEFAULT_SAVE_LOCATION])}'
 
 
 def get_is_apply_year_to_save_location(scenario_json):

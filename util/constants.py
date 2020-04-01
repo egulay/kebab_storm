@@ -1,5 +1,12 @@
 EXCEPTION_TEMPLATE = "An exception of type {0} occurred. Arguments:\n{1!r}"
 
+CLI_SCENARIO_JSON_PATH = 'cli_scenario_json_path'
+CLI_INPUT_FILE_DELIMITER = 'cli_input_file_delimiter'
+CLI_INPUT_FILE_PATH = 'cli_input_file_path'
+CLI_ID_VALUE = 'cli_id_value'
+CLI_CRYPTO_ACTION = 'cli_crypto_action'
+CLI_DATE = 'cli_date'
+
 STANDALONE = 'local[*]'
 
 BS = 16

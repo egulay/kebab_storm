@@ -4,11 +4,10 @@ from datetime import datetime
 
 import numpy as np
 from dateutil.relativedelta import relativedelta
-from pyspark import SparkConf
-from pyspark.sql import functions as func, DataFrame
+from pyspark.sql import functions as func, DataFrame, SparkSession
 from pyspark.sql.types import BinaryType, TimestampType, StructType, StructField, StringType
 
-from conf.settings import KEBAB_STORM_LOGGING_LOCATION, SPARK_MASTER, SPARK_CONFIG, DEFAULT_DATA_LOCATION
+from conf import settings
 from etl.crypter import execute_crypto_action
 from etl.refiner import validate_and_refine
 from util.constants import DAY_PARTITION_FIELD_NAME, DATE_IMPORTED_FIELD_NAME, SOFT_DELETED_FIELD_NAME, \
@@ -22,16 +21,14 @@ from util.parquet_util import write_spark_parquet, write_hive_table, read_spark_
     hdfs_delete, hdfs_get_folder_names, hdfs_get_folder_years_less_than
 from util.scenario_util import get_scenario_defaults, get_missing_fields, find_mapped_as_value, \
     load_scenario, find_field_is_encrypted
-from util.spark_util import SparkProvider
 
-logger = get_logger(__name__, KEBAB_STORM_LOGGING_LOCATION,
-                    f'{datetime.today().strftime("%Y-%m-%d")}.log')
-
-spark_session = SparkProvider.setup_spark('Project: Kebab Storm', SPARK_MASTER,
-                                          extra_dependencies=[], conf=SparkConf().setAll(SPARK_CONFIG))
+logger = get_logger(__name__, settings.logging_location,
+                    f'{datetime.today().strftime("%Y-%m-%d")}.log', settings.active_profile)
 
 
-def get_reporting_data(scenario_json_path: str, crypto_action: CryptoAction, incl_soft_deleted: bool, day) -> DataFrame:
+async def get_reporting_data(spark_session: SparkSession, scenario_json_path: str,
+                             crypto_action: CryptoAction,
+                             incl_soft_deleted: bool, day) -> DataFrame:
     name, save_location, temp_save_location, save_type, import_mode, id_field_name, delimiter, hard_delete_in_years, \
         enforce_data_model, is_apply_year_to_save_location = get_scenario_defaults(scenario_json_path)
 
@@ -60,7 +57,7 @@ def get_reporting_data(scenario_json_path: str, crypto_action: CryptoAction, inc
                                                                                     CryptoAction.decrypt)
 
 
-def hard_delete(scenario_json_path):
+async def hard_delete(spark_session: SparkSession, scenario_json_path):
     name, save_location, temp_save_location, save_type, import_mode, id_field_name, delimiter, hard_delete_in_years, \
         enforce_data_model, is_apply_year_to_save_location = get_scenario_defaults(scenario_json_path)
 
@@ -141,8 +138,9 @@ def hard_delete(scenario_json_path):
                 f'Save as {s_type} finished into {table_name} table on {save_location} with overwrite for hard delete')
         else:
             for year in folder_years_less_than_x:
-                write_hive_table(f'{table_name}_{year}', read_spark_parquet(spark_session, temp_save_location).where(
-                    f'{YEAR_IMPORTED_FIELD_NAME}={year}'), f'{save_location}_{year}',
+                write_hive_table(f'{table_name}_{year}',
+                                 read_spark_parquet(spark_session, temp_save_location).where(
+                                     f'{YEAR_IMPORTED_FIELD_NAME}={year}'), f'{save_location}_{year}',
                                  ParquetSaveMode.overwrite, DAY_PARTITION_FIELD_NAME)
                 logger.info(
                     f'Save as {s_type} finished into {table_name} table on {save_location}_{year} with overwrite '
@@ -156,7 +154,7 @@ def hard_delete(scenario_json_path):
         exit(1)
 
 
-def soft_delete(scenario_json_path, id_value_to_soft_delete):
+async def soft_delete(spark_session: SparkSession, scenario_json_path, id_value_to_soft_delete):
     name, save_location, temp_save_location, save_type, import_mode, id_field_name, delimiter, hard_delete_in_years, \
         enforce_data_model, is_apply_year_to_save_location = get_scenario_defaults(scenario_json_path)
 
@@ -175,11 +173,12 @@ def soft_delete(scenario_json_path, id_value_to_soft_delete):
     else:
         for directory in hdfs_get_folder_names(spark_session, save_location):
             if found_in_parquets is not None and not found_in_parquets.rdd.isEmpty():
-                u_data = read_spark_parquet(spark_session, f'{DEFAULT_DATA_LOCATION}/{directory}')
+                u_data = read_spark_parquet(spark_session, f'{settings.default_data_location}/{directory}')
                 if not u_data.rdd.isEmpty():
                     found_in_parquets = found_in_parquets.union(u_data)
             else:
-                found_in_parquets = read_spark_parquet(spark_session, f'{DEFAULT_DATA_LOCATION}/{directory}')
+                found_in_parquets = read_spark_parquet(spark_session,
+                                                       f'{settings.default_data_location}/{directory}')
 
     if found_in_parquets.rdd.isEmpty():
         logger.error(f'No data found in {save_location}')
@@ -265,8 +264,9 @@ def soft_delete(scenario_json_path, id_value_to_soft_delete):
                              .collect())
 
             for year in list(itertools.chain(*years)):
-                write_hive_table(f'{table_name}_{year}', read_spark_parquet(spark_session, temp_save_location).where(
-                    f'{YEAR_IMPORTED_FIELD_NAME}={year}'), f'{save_location}_{year}',
+                write_hive_table(f'{table_name}_{year}',
+                                 read_spark_parquet(spark_session, temp_save_location).where(
+                                     f'{YEAR_IMPORTED_FIELD_NAME}={year}'), f'{save_location}_{year}',
                                  ParquetSaveMode.overwrite, DAY_PARTITION_FIELD_NAME)
                 logger.info(
                     f'Save as {s_type} finished into {table_name} table on {save_location}_{year} with overwrite')
@@ -279,7 +279,9 @@ def soft_delete(scenario_json_path, id_value_to_soft_delete):
         exit(1)
 
 
-def encrypt_and_import(scenario_json_path: str, input_file_path: str, day):
+async def encrypt_and_import(spark_session: SparkSession,
+                             scenario_json_path: str, input_file_path: str,
+                             day: str):
     name, save_location, temp_save_location, save_type, import_mode, id_field_name, delimiter, hard_delete_in_years, \
         enforce_data_model, is_apply_year_to_save_location = get_scenario_defaults(scenario_json_path)
 
@@ -303,11 +305,11 @@ def encrypt_and_import(scenario_json_path: str, input_file_path: str, day):
     logger.info(f'Raw data loaded from {input_file_path} for {name} entity')
 
     spark_session.sparkContext.setJobDescription(f'Encrypt & import for {name} - data refinement')
-    refined_df = validate_and_refine(scenario_json_path, raw_data, partition_name)
+    refined_df = await validate_and_refine(scenario_json_path, raw_data, partition_name)
     logger.info(f'Data refinement and validation applied for {name} entity')
 
     spark_session.sparkContext.setJobDescription(f'Encrypt & import for {name} - apply encryption')
-    encrypted_df = execute_crypto_action(refined_df, scenario_json_path, CryptoAction.encrypt)
+    encrypted_df = await execute_crypto_action(refined_df, scenario_json_path, CryptoAction.encrypt)
     logger.info(f'Cryptography applied for {name} entity')
 
     logger.info(f'Save as {save_type} started. Import mode: {import_mode}')

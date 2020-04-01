@@ -6,17 +6,17 @@ from pyspark.sql import DataFrame
 from pyspark.sql import functions as func
 from pyspark.sql.types import TimestampType
 
-from conf.settings import KEBAB_STORM_LOGGING_LOCATION
+from conf import settings
 from util.constants import DAY_PARTITION_FIELD_NAME, SOFT_DELETED_FIELD_NAME, DATE_IMPORTED_FIELD_NAME
+from util.etl_util import generic_validate_udf, generic_cast, generic_map_as
 from util.logger import get_logger
-from util.etl_util import generic_validate_udf, generic_cast, generic_map_as, get_day_partition_name_and_year
 from util.scenario_util import load_scenario, find_fields, get_id_field_name
 
-logger = get_logger(__name__, KEBAB_STORM_LOGGING_LOCATION,
-                    f'{datetime.today().strftime("%Y-%m-%d")}.log')
+logger = get_logger(__name__, settings.logging_location,
+                    f'{datetime.today().strftime("%Y-%m-%d")}.log', settings.active_profile)
 
 
-def validate_and_refine(scenario_json_path, source: DataFrame, day) -> DataFrame:
+async def validate_and_refine(scenario_json_path, source: DataFrame, day) -> DataFrame:
     scenario = load_scenario(scenario_json_path)
 
     columns_to_refine = find_fields(scenario)
