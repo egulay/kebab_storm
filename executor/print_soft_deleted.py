@@ -22,12 +22,12 @@ spark_session = SparkProvider.setup_spark('Project: Kebab Storm', settings.spark
 async def main():
     print(settings.banner)
     time.sleep(0.005)
+
+    await set_args()
+
     logger.info(
         f'###### KEBAB STORM STARTED | Active Profile: {settings.active_profile} '
         f'on Spark {spark_session.version} ######')
-    time.sleep(0.005)
-
-    await set_args()
 
     await print_soft_deleted(spark_session, settings.active_config[CLI_SCENARIO_JSON_PATH].get(),
                              settings.active_config[CLI_CRYPTO_ACTION].get())
