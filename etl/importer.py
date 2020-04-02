@@ -28,7 +28,7 @@ logger = get_logger(__name__, settings.logging_location,
 
 async def get_reporting_data(spark_session: SparkSession, scenario_json_path: str,
                              crypto_action: CryptoAction,
-                             incl_soft_deleted: bool, day) -> DataFrame:
+                             include_soft_deleted: bool, day) -> DataFrame:
     name, save_location, temp_save_location, save_type, import_mode, id_field_name, delimiter, hard_delete_in_years, \
         enforce_data_model, is_apply_year_to_save_location = get_scenario_defaults(scenario_json_path)
 
@@ -50,11 +50,11 @@ async def get_reporting_data(spark_session: SparkSession, scenario_json_path: st
         return spark_session.createDataFrame(spark_session.sparkContext.emptyRDD,
                                              StructType([StructField("no data", StringType(), True)]))
 
-    if not incl_soft_deleted:
+    if not include_soft_deleted:
         data = data.where(f'{SOFT_DELETED_FIELD_NAME} IS NULL')
 
-    return data if crypto_action == CryptoAction.encrypt else execute_crypto_action(data, scenario_json_path,
-                                                                                    CryptoAction.decrypt)
+    return data if crypto_action == CryptoAction.encrypt else await execute_crypto_action(data, scenario_json_path,
+                                                                                          CryptoAction.decrypt)
 
 
 async def hard_delete(spark_session: SparkSession, scenario_json_path):
