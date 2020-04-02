@@ -41,17 +41,17 @@ async def set_args():
     parser.add_argument('--scenario', '-scn', dest=CLI_SCENARIO_JSON_PATH, metavar='/path/to/scenario.json',
                         help='Scenario JSON file path')
 
-    parser.add_argument('--crypto-action', '-ca', dest=CLI_CRYPTO_ACTION, metavar='decrypted',
+    parser.add_argument('--crypto-action', '-ca', dest=CLI_CRYPTO_ACTION, metavar='decrypted | encrypted',
                         help='Print data decrypted or encrypted')
 
     parser.add_argument('--date', '-d', dest=CLI_DATE, metavar='2020-01-01',
                         help='Imported date in YYYY-mm-dd format')
 
     args = parser.parse_args()
-    is_params_provided = None not in (args.cli_scenario_json_path, args.cli_crypto_action, args.cli_date)
-    if not is_params_provided:
-        logger.error('Missing parameter value(s). For information execute with --help')
-        exit(1)
+    is_args_provided = None not in (args.cli_scenario_json_path, args.cli_crypto_action, args.cli_date)
+    if not is_args_provided:
+        parser.error('Missing argument(s)')
+
     settings.active_config.set_args(args, dots=False)
 
 

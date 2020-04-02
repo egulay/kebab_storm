@@ -42,8 +42,8 @@ async def set_args():
 
     args = parser.parse_args()
     if args.cli_scenario_json_path is None:
-        logger.error('Missing parameter value(s). For information execute with --help')
-        exit(1)
+        parser.error('Missing argument(s)')
+
     settings.active_config.set_args(args, dots=False)
 
 
