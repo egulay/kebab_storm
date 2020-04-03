@@ -13,7 +13,7 @@ async def main():
     await set_args()
 
     logger.info(
-        f'###### KEBAB STORM STARTED | Active Profile: {settings.active_profile} '
+        f'###### KEBAB STORM STARTED | Active YAML Configuration: {settings.active_profile} '
         f'on Spark {spark_session.version} ######')
 
     await hard_delete(spark_session, settings.active_config[CLI_SCENARIO_JSON_PATH].get())
