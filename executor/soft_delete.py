@@ -1,29 +1,16 @@
 import argparse
 import asyncio
 import time
-from datetime import datetime
-
-from pyspark import SparkConf
 
 from conf import settings
 from etl.importer import soft_delete
+from executor import spark_session, logger
 from util.constants import CLI_SCENARIO_JSON_PATH, CLI_ID_VALUE
-from util.logger import get_logger
-from util.spark_util import SparkProvider
-
-logger = get_logger(__name__, settings.logging_location,
-                    f'{datetime.today().strftime("%Y-%m-%d")}.log', settings.active_profile)
-
-spark_session = SparkProvider.setup_spark('Project: Kebab Storm', settings.spark_master,
-                                          extra_dependencies=[], conf=SparkConf().setAll(settings.spark_config))
 
 
 # ex. --scenario ../scenario/sales_records_scenario.json --id_value 897751939
 # ex. --scenario ../scenario/sales_records_scenario.json --id_value 281291043
 async def main():
-    print(settings.banner)
-    time.sleep(0.005)
-
     await set_args()
 
     logger.info(
