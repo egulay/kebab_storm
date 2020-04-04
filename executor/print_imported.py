@@ -45,8 +45,5 @@ async def set_args():
 if __name__ == "__main__":
     s = time.perf_counter()
     asyncio.run(main())
-    # Python 3.6:
-    # loop = asyncio.get_event_loop()
-    # loop.run_until_complete(main())
     elapsed = time.perf_counter() - s
     logger.info(f"{__file__} executed in {elapsed:0.2f} seconds")
