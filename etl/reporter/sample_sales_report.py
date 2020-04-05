@@ -36,9 +36,10 @@ async def main():
 
     sample_report = data.select(data.COUNTRY, data.TOTALPROFIT) \
         .groupBy(data.COUNTRY) \
-        .agg(func.count(data.TOTALPROFIT).alias('TOTAL_SALES')) \
-        .sort(func.desc('TOTAL_SALES'))
-    # sample_report.show(truncate=False)
+        .agg(func.count(data.COUNTRY).alias('TOTAL_SALES_ENTRY')) \
+        .sort(func.desc('TOTAL_SALES_ENTRY'))
+
+    sample_report.show(truncate=False)
 
     # TODO: save will be implemented here
     if str(report_save_type).startswith('parquet'):
