@@ -1,7 +1,6 @@
 import json
 from datetime import datetime
 
-from dateutil.relativedelta import relativedelta
 from pyspark.sql import functions as func
 from pyspark.sql.types import StringType, IntegerType, DoubleType, TimestampType, FloatType, DecimalType, LongType
 
@@ -22,6 +21,10 @@ generic_soft_delete_udf = func.udf(
 
 REFINER_MODULE_NAME = 'etl.refiner'
 REFINER_LOGGER_NAME = 'logger'
+
+
+def get_boolean(s: str) -> bool:
+    return s.lower() in ['true', '1', 't', 'y', 'yes', 'yeah', 'yup', 'yea', 'certainly', 'uh-huh']
 
 
 def get_day_partition_name_and_year(date_str):

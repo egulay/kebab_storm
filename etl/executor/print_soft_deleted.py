@@ -3,13 +3,12 @@ import asyncio
 import time
 
 from conf import settings
-from etl.importer import soft_delete
-from executor import spark_session, logger
-from util.constants import CLI_SCENARIO_JSON_PATH, CLI_ID_VALUE
+from etl.printer import print_soft_deleted
+from etl.executor import spark_session, logger
+from util.constants import CLI_SCENARIO_JSON_PATH, CLI_CRYPTO_ACTION
 
 
-# ex. --scenario ../scenario/sales_records_scenario.json --id_value 897751939
-# ex. --scenario ../scenario/sales_records_scenario.json --id_value 281291043
+# ex. --scenario ../../scenario/sales_records_scenario.json --crypto-action decrypted
 async def main():
     await set_args()
 
@@ -17,8 +16,8 @@ async def main():
         f'###### KEBAB STORM STARTED | Active YAML Configuration: {settings.active_profile} '
         f'on Spark {spark_session.version} ######')
 
-    await soft_delete(spark_session, settings.active_config[CLI_SCENARIO_JSON_PATH].get(),
-                      settings.active_config[CLI_ID_VALUE].get())
+    await print_soft_deleted(spark_session, settings.active_config[CLI_SCENARIO_JSON_PATH].get(),
+                             settings.active_config[CLI_CRYPTO_ACTION].get())
 
 
 async def set_args():
@@ -29,13 +28,13 @@ async def set_args():
     parser.add_argument('--scenario', '-scn', dest=CLI_SCENARIO_JSON_PATH, metavar='/path/to/scenario.json',
                         help='Scenario JSON file path')
 
-    parser.add_argument('--id_value', '-id', dest=CLI_ID_VALUE, metavar='0123456789',
-                        help='Row ID value to soft-delete')
+    parser.add_argument('--crypto-action', '-ca', dest=CLI_CRYPTO_ACTION, metavar='decrypted | encrypted',
+                        help='Print soft-deleted rows decrypted or encrypted')
 
     args = parser.parse_args()
-    is_args_provided = None not in (args.cli_scenario_json_path, args.cli_id_value)
+    is_args_provided = None not in (args.cli_scenario_json_path, args.cli_crypto_action)
     if not is_args_provided:
-        parser.error('Missing parameter value(s). For information execute with --help')
+        parser.error(f'Missing argument(s)')
 
     settings.active_config.set_args(args, dots=False)
 

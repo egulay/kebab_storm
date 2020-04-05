@@ -4,11 +4,11 @@ import time
 
 from conf import settings
 from etl.printer import print_refined_data_with_schema
-from executor import spark_session, logger
+from etl.executor import spark_session, logger
 from util.constants import CLI_SCENARIO_JSON_PATH, CLI_INPUT_FILE_PATH
 
 
-# ex. --scenario ../scenario/sales_records_scenario.json --input-file ../data/50k_sales_records_corrupted.csv
+# ex. --scenario ../../scenario/sales_records_scenario.json --input-file ../../data/50k_sales_records_corrupted.csv
 async def main():
     await set_args()
 

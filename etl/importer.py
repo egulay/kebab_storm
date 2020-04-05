@@ -4,7 +4,7 @@ from datetime import datetime
 
 import numpy as np
 from dateutil.relativedelta import relativedelta
-from pyspark.sql import functions as func, DataFrame, SparkSession
+from pyspark.sql import functions as func, SparkSession
 from pyspark.sql.types import BinaryType, TimestampType, StructType, StructField, StringType
 
 from conf import settings
@@ -28,9 +28,10 @@ logger = get_logger(__name__, settings.logging_location,
 
 async def get_reporting_data(spark_session: SparkSession, scenario_json_path: str,
                              crypto_action: CryptoAction,
-                             include_soft_deleted: bool, day) -> DataFrame:
-    name, save_location, temp_save_location, save_type, import_mode, id_field_name, delimiter, hard_delete_in_years, \
-        enforce_data_model, is_apply_year_to_save_location = get_scenario_defaults(scenario_json_path)
+                             include_soft_deleted: bool, day):
+    name, import_save_location, temp_save_location, import_save_type, import_mode, id_field_name, delimiter, \
+        hard_delete_in_years, enforce_data_model, is_apply_year_to_save_location, report_save_location, \
+        report_save_type = get_scenario_defaults(scenario_json_path)
 
     partition_name, year = get_day_partition_name_and_year(day)
 
@@ -38,45 +39,45 @@ async def get_reporting_data(spark_session: SparkSession, scenario_json_path: st
                 f'on day={partition_name}')
 
     if is_apply_year_to_save_location:
-        save_location = f'{save_location}_{year}'
+        import_save_location = f'{import_save_location}_{year}'
 
-    parquet_path = f'{save_location}/{DAY_PARTITION_FIELD_NAME}={partition_name}'
+    parquet_path = f'{import_save_location}/{DAY_PARTITION_FIELD_NAME}={partition_name}'
 
     spark_session.sparkContext.setJobDescription(f'Get reporting data for {name}')
     data = read_spark_parquet(spark_session, parquet_path)
 
     if data.rdd.isEmpty():
         logger.error('No data found')
-        return spark_session.createDataFrame(spark_session.sparkContext.emptyRDD,
-                                             StructType([StructField("no data", StringType(), True)]))
+        return spark_session.createDataFrame([], StructType([StructField("no data", StringType(), True)]))
 
     if not include_soft_deleted:
         data = data.where(f'{SOFT_DELETED_FIELD_NAME} IS NULL')
 
-    return data if crypto_action == CryptoAction.encrypt else await execute_crypto_action(data, scenario_json_path,
-                                                                                          CryptoAction.decrypt)
+    return data if crypto_action == CryptoAction.encrypt else await \
+        execute_crypto_action(data, scenario_json_path, CryptoAction.decrypt), report_save_type, report_save_location
 
 
 async def hard_delete(spark_session: SparkSession, scenario_json_path):
-    name, save_location, temp_save_location, save_type, import_mode, id_field_name, delimiter, hard_delete_in_years, \
-        enforce_data_model, is_apply_year_to_save_location = get_scenario_defaults(scenario_json_path)
+    name, import_save_location, temp_save_location, import_save_type, import_mode, id_field_name, delimiter, \
+        hard_delete_in_years, enforce_data_model, is_apply_year_to_save_location, report_save_location, \
+        report_save_type = get_scenario_defaults(scenario_json_path)
 
     logger.info(f'Active action: Hard delete for {name} entity defined in {scenario_json_path}')
     spark_session.sparkContext.setJobDescription(f'Hard delete for {name}')
 
     x_years_ago = datetime.now() - relativedelta(years=hard_delete_in_years)
-    folder_years_less_than_x = hdfs_get_folder_years_less_than(spark_session, save_location, x_years_ago.year)
+    folder_years_less_than_x = hdfs_get_folder_years_less_than(spark_session, import_save_location, x_years_ago.year)
     all_data = None
     if not is_apply_year_to_save_location:
-        all_data = read_spark_parquet(spark_session, save_location)
+        all_data = read_spark_parquet(spark_session, import_save_location)
     else:
         for year in folder_years_less_than_x:
             if all_data is not None and not all_data.rdd.isEmpty():
-                u_data = read_spark_parquet(spark_session, f'{save_location}_{year}')
+                u_data = read_spark_parquet(spark_session, f'{import_save_location}_{year}')
                 if not u_data.rdd.isEmpty():
                     all_data = all_data.union(u_data)
             else:
-                all_data = read_spark_parquet(spark_session, f'{save_location}_{year}')
+                all_data = read_spark_parquet(spark_session, f'{import_save_location}_{year}')
 
     if all_data is None or all_data.rdd.isEmpty():
         logger.error(f'No data found')
@@ -101,62 +102,64 @@ async def hard_delete(spark_session: SparkSession, scenario_json_path):
     logger.info(f'Overwriting partitions')
 
     spark_session.sparkContext.setJobDescription(f'Hard delete for {name} - overwrite partitions')
-    if str(save_type).startswith('parquet'):
+    if str(import_save_type).startswith('parquet'):
         write_spark_parquet(new_data, temp_save_location,
                             ParquetSaveMode.overwrite,
                             DAY_PARTITION_FIELD_NAME)
-        logger.info(f'Save as {save_type} finished into {temp_save_location} for hard delete')
+        logger.info(f'Save as {import_save_type} finished into {temp_save_location} for hard delete')
 
         if not is_apply_year_to_save_location:
-            write_spark_parquet(read_spark_parquet(spark_session, temp_save_location), save_location,
+            write_spark_parquet(read_spark_parquet(spark_session, temp_save_location), import_save_location,
                                 ParquetSaveMode.overwrite, DAY_PARTITION_FIELD_NAME)
-            logger.info(f'Save as {save_type} finished into {save_location} '
+            logger.info(f'Save as {import_save_type} finished into {import_save_location} '
                         f'with overwrite for hard delete')
         else:
             for year in folder_years_less_than_x:
                 write_spark_parquet(read_spark_parquet(spark_session, temp_save_location).where(
-                    f'{YEAR_IMPORTED_FIELD_NAME}={year}'), f'{save_location}_{year}',
+                    f'{YEAR_IMPORTED_FIELD_NAME}={year}'), f'{import_save_location}_{year}',
                     ParquetSaveMode.overwrite, DAY_PARTITION_FIELD_NAME)
-                logger.info(f'Save as {save_type} finished into {save_location}_{year} '
+                logger.info(f'Save as {import_save_type} finished into {import_save_location}_{year} '
                             f'with overwrite for hard delete')
 
         hdfs_delete(spark_session, temp_save_location)
         logger.info(f'{temp_save_location} is cleaned up')
-    elif str(save_type).startswith('table'):
-        table_name = str(save_type).split('|')[1]
-        temp_table_name = f"{str(save_type).split('|')[1]}_temp"
-        s_type = str(save_type).split('|')[0]
+    elif str(import_save_type).startswith('table'):
+        table_name = str(import_save_type).split('|')[1]
+        temp_table_name = f"{str(import_save_type).split('|')[1]}_temp"
+        s_type = str(import_save_type).split('|')[0]
         write_hive_table(temp_table_name, new_data, temp_save_location, ParquetSaveMode.overwrite,
                          DAY_PARTITION_FIELD_NAME)
         logger.info(
             f'Save as {s_type} finished into {table_name} table on {temp_save_location} for hard delete')
 
         if not is_apply_year_to_save_location:
-            write_hive_table(table_name, read_spark_parquet(spark_session, temp_save_location), save_location,
+            write_hive_table(table_name, read_spark_parquet(spark_session, temp_save_location), import_save_location,
                              ParquetSaveMode.overwrite, DAY_PARTITION_FIELD_NAME)
             logger.info(
-                f'Save as {s_type} finished into {table_name} table on {save_location} with overwrite for hard delete')
+                f'Save as {s_type} finished into {table_name} table on {import_save_location} '
+                f'with overwrite for hard delete')
         else:
             for year in folder_years_less_than_x:
                 write_hive_table(f'{table_name}_{year}',
                                  read_spark_parquet(spark_session, temp_save_location).where(
-                                     f'{YEAR_IMPORTED_FIELD_NAME}={year}'), f'{save_location}_{year}',
+                                     f'{YEAR_IMPORTED_FIELD_NAME}={year}'), f'{import_save_location}_{year}',
                                  ParquetSaveMode.overwrite, DAY_PARTITION_FIELD_NAME)
                 logger.info(
-                    f'Save as {s_type} finished into {table_name} table on {save_location}_{year} with overwrite '
-                    f'for hard delete')
+                    f'Save as {s_type} finished into {table_name} table on {import_save_location}_{year} with '
+                    f'overwrite for hard delete')
 
         hdfs_delete(spark_session, temp_save_location)
         logger.info(f'{temp_save_location} is cleaned up')
     else:
-        logger.error(f'Save mode {save_type} is not identified for {name} '
+        logger.error(f'Save mode {import_save_type} is not identified for {name} '
                      f'entity. Please check scenario JSON located in {scenario_json_path}.')
         exit(1)
 
 
 async def soft_delete(spark_session: SparkSession, scenario_json_path, id_value_to_soft_delete):
-    name, save_location, temp_save_location, save_type, import_mode, id_field_name, delimiter, hard_delete_in_years, \
-        enforce_data_model, is_apply_year_to_save_location = get_scenario_defaults(scenario_json_path)
+    name, import_save_location, temp_save_location, import_save_type, import_mode, id_field_name, delimiter, \
+        hard_delete_in_years, enforce_data_model, is_apply_year_to_save_location, report_save_location, \
+        report_save_type = get_scenario_defaults(scenario_json_path)
 
     scenario = load_scenario(scenario_json_path)
     mapped_id_field_name = find_mapped_as_value(scenario, id_field_name)
@@ -169,9 +172,9 @@ async def soft_delete(spark_session: SparkSession, scenario_json_path, id_value_
 
     found_in_parquets = None
     if not is_apply_year_to_save_location:
-        found_in_parquets = read_spark_parquet(spark_session, save_location)
+        found_in_parquets = read_spark_parquet(spark_session, import_save_location)
     else:
-        for directory in hdfs_get_folder_names(spark_session, save_location):
+        for directory in hdfs_get_folder_names(spark_session, import_save_location):
             if found_in_parquets is not None and not found_in_parquets.rdd.isEmpty():
                 u_data = read_spark_parquet(spark_session, f'{settings.default_data_location}/{directory}')
                 if not u_data.rdd.isEmpty():
@@ -181,7 +184,7 @@ async def soft_delete(spark_session: SparkSession, scenario_json_path, id_value_
                                                        f'{settings.default_data_location}/{directory}')
 
     if found_in_parquets.rdd.isEmpty():
-        logger.error(f'No data found in {save_location}')
+        logger.error(f'No data found in {import_save_location}')
         return
 
     if is_id_field_encrypted:
@@ -208,16 +211,16 @@ async def soft_delete(spark_session: SparkSession, scenario_json_path, id_value_
             .withColumn(DAY_PARTITION_FIELD_NAME, func.col(DATE_IMPORTED_FIELD_NAME))
 
     spark_session.sparkContext.setJobDescription(f'Soft delete for {name} - write partition')
-    if str(save_type).startswith('parquet'):
+    if str(import_save_type).startswith('parquet'):
         write_spark_parquet(data, temp_save_location,
                             ParquetSaveMode.overwrite,
                             DAY_PARTITION_FIELD_NAME)
-        logger.info(f'Save as {save_type} finished into {temp_save_location}')
+        logger.info(f'Save as {import_save_type} finished into {temp_save_location}')
 
         if not is_apply_year_to_save_location:
-            write_spark_parquet(read_spark_parquet(spark_session, temp_save_location), save_location,
+            write_spark_parquet(read_spark_parquet(spark_session, temp_save_location), import_save_location,
                                 ParquetSaveMode.overwrite, DAY_PARTITION_FIELD_NAME)
-            logger.info(f'Save as {save_type} finished into {save_location} '
+            logger.info(f'Save as {import_save_type} finished into {import_save_location} '
                         f'with overwrite')
         else:
             today = datetime.today().strftime('%Y-%m-%d')
@@ -230,27 +233,27 @@ async def soft_delete(spark_session: SparkSession, scenario_json_path, id_value_
 
             for year in list(itertools.chain(*years)):
                 write_spark_parquet(read_spark_parquet(spark_session, temp_save_location).where(
-                    f'{YEAR_IMPORTED_FIELD_NAME}={year}'), f'{save_location}_{year}',
+                    f'{YEAR_IMPORTED_FIELD_NAME}={year}'), f'{import_save_location}_{year}',
                     ParquetSaveMode.overwrite, DAY_PARTITION_FIELD_NAME)
-                logger.info(f'Save as {save_type} finished into {save_location}_{year} '
+                logger.info(f'Save as {import_save_type} finished into {import_save_location}_{year} '
                             f'with overwrite')
 
         hdfs_delete(spark_session, temp_save_location)
         logger.info(f'{temp_save_location} is cleaned up')
-    elif str(save_type).startswith('table'):
-        table_name = str(save_type).split('|')[1]
-        temp_table_name = f"{str(save_type).split('|')[1]}_temp"
-        s_type = str(save_type).split('|')[0]
+    elif str(import_save_type).startswith('table'):
+        table_name = str(import_save_type).split('|')[1]
+        temp_table_name = f"{str(import_save_type).split('|')[1]}_temp"
+        s_type = str(import_save_type).split('|')[0]
         write_hive_table(temp_table_name, data, temp_save_location, ParquetSaveMode.overwrite,
                          DAY_PARTITION_FIELD_NAME)
         logger.info(
             f'Save as {s_type} finished into {table_name} table on {temp_save_location}')
 
         if not is_apply_year_to_save_location:
-            write_hive_table(table_name, read_spark_parquet(spark_session, temp_save_location), save_location,
+            write_hive_table(table_name, read_spark_parquet(spark_session, temp_save_location), import_save_location,
                              ParquetSaveMode.overwrite, DAY_PARTITION_FIELD_NAME)
             logger.info(
-                f'Save as {s_type} finished into {table_name} table on {save_location} with overwrite')
+                f'Save as {s_type} finished into {table_name} table on {import_save_location} with overwrite')
         else:
             # x_years_old = 3
             # x_years_ago = datetime.now() - relativedelta(years=x_years_old)
@@ -266,15 +269,16 @@ async def soft_delete(spark_session: SparkSession, scenario_json_path, id_value_
             for year in list(itertools.chain(*years)):
                 write_hive_table(f'{table_name}_{year}',
                                  read_spark_parquet(spark_session, temp_save_location).where(
-                                     f'{YEAR_IMPORTED_FIELD_NAME}={year}'), f'{save_location}_{year}',
+                                     f'{YEAR_IMPORTED_FIELD_NAME}={year}'), f'{import_save_location}_{year}',
                                  ParquetSaveMode.overwrite, DAY_PARTITION_FIELD_NAME)
                 logger.info(
-                    f'Save as {s_type} finished into {table_name} table on {save_location}_{year} with overwrite')
+                    f'Save as {s_type} finished into {table_name} table on {import_save_location}_{year} '
+                    f'with overwrite')
 
         hdfs_delete(spark_session, temp_save_location)
         logger.info(f'{temp_save_location} is cleaned up')
     else:
-        logger.error(f'Save mode {save_type} is not identified for {name} '
+        logger.error(f'Save mode {import_save_type} is not identified for {name} '
                      f'entity. Please check scenario JSON located in {scenario_json_path}.')
         exit(1)
 
@@ -282,8 +286,9 @@ async def soft_delete(spark_session: SparkSession, scenario_json_path, id_value_
 async def encrypt_and_import(spark_session: SparkSession,
                              scenario_json_path: str, input_file_path: str,
                              day: str):
-    name, save_location, temp_save_location, save_type, import_mode, id_field_name, delimiter, hard_delete_in_years, \
-        enforce_data_model, is_apply_year_to_save_location = get_scenario_defaults(scenario_json_path)
+    name, import_save_location, temp_save_location, import_save_type, import_mode, id_field_name, delimiter, \
+        hard_delete_in_years, enforce_data_model, is_apply_year_to_save_location, report_save_location, \
+        report_save_type = get_scenario_defaults(scenario_json_path)
 
     partition_name, year = get_day_partition_name_and_year(day)
 
@@ -312,31 +317,32 @@ async def encrypt_and_import(spark_session: SparkSession,
     encrypted_df = await execute_crypto_action(refined_df, scenario_json_path, CryptoAction.encrypt)
     logger.info(f'Cryptography applied for {name} entity')
 
-    logger.info(f'Save as {save_type} started. Import mode: {import_mode}')
+    logger.info(f'Save as {import_save_type} started. Import mode: {import_mode}')
 
     if is_apply_year_to_save_location:
         encrypted_df = encrypted_df.withColumn(YEAR_IMPORTED_FIELD_NAME, func.lit(year))
 
     spark_session.sparkContext.setJobDescription(f'Encrypt & import for {name} - write partition')
-    if str(save_type).startswith('parquet'):
+    if str(import_save_type).startswith('parquet'):
         write_spark_parquet(encrypted_df,
-                            save_location if not is_apply_year_to_save_location else f'{save_location}_{year}',
+                            import_save_location if not is_apply_year_to_save_location else
+                            f'{import_save_location}_{year}',
                             ParquetSaveMode(import_mode),
                             DAY_PARTITION_FIELD_NAME)
-        logger.info(f'Save as {save_type} finished with partition day={partition_name}. Import mode: {import_mode}')
+        logger.info(f'Save as {import_save_type} finished with partition day={partition_name}. '
+                    f'Import mode: {import_mode}')
         return
-    elif str(save_type).startswith('table'):
-        table_name = str(save_type).split('|')[1]
-        s_type = str(save_type).split('|')[0]
+    elif str(import_save_type).startswith('table'):
+        table_name = str(import_save_type).split('|')[1]
+        s_type = str(import_save_type).split('|')[0]
         write_hive_table(table_name if not is_apply_year_to_save_location else f'{table_name}_{year}', encrypted_df,
-                         save_location if not is_apply_year_to_save_location else f'{save_location}_{year}',
-                         ParquetSaveMode(import_mode),
-                         DAY_PARTITION_FIELD_NAME)
+                         import_save_location if not is_apply_year_to_save_location
+                         else f'{import_save_location}_{year}', ParquetSaveMode(import_mode), DAY_PARTITION_FIELD_NAME)
         logger.info(
             f'Save as {s_type} finished into {table_name} table with partition day={partition_name}. '
             f'Import mode: {import_mode}')
         return
     else:
-        logger.error(f'Save mode {save_type} is not identified for {name} '
+        logger.error(f'Save mode {import_save_type} is not identified for {name} '
                      f'entity. Please check scenario JSON located in {scenario_json_path}.')
         exit(1)

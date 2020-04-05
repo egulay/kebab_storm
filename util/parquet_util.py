@@ -66,8 +66,7 @@ def read_spark_parquets_by_dates(session: SparkSession, start_date, end_date, pa
         if available_parquets:
             return session.read.parquet(*available_parquets)
 
-        return session.createDataFrame(session.sparkContext.emptyRDD,
-                                       StructType([StructField("no data", StringType(), True)]))
+        return session.createDataFrame([], StructType([StructField("no data", StringType(), True)]))
     except Exception as e:
         logger.error(EXCEPTION_TEMPLATE.format(type(e).__name__, e.args))
         return session.createDataFrame([], StructType([StructField("no data", StringType(), True)]))

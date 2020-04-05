@@ -20,7 +20,7 @@ async def validate_and_refine(scenario_json_path, source: DataFrame, day) -> Dat
     scenario = load_scenario(scenario_json_path)
 
     columns_to_refine = find_fields(scenario)
-    logger.info(f'Refinement will be applied to following column(s): {columns_to_refine}')
+    logger.info(f'Refinement will be applied to following column(s): {", ".join(map(str, columns_to_refine)).strip()}')
 
     validated_df = reduce(lambda x_df, col_name: x_df.withColumn(col_name, generic_validate_udf(
         func.struct(col_name, func.lit(json.dumps(scenario)), func.lit(col_name),

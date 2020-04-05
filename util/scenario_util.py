@@ -4,9 +4,10 @@ from pyspark.sql import DataFrame
 
 from conf import settings
 from util.constants import FIELD_NAME, FIELD_IS_ENCRYPTED, FIELD_ENCRYPTION_KEY, FIELD_TYPE, FIELDS, FIELD_MAP_AS, \
-    SCENARIO_DEFAULT_SAVE_LOCATION, SCENARIO_DEFAULT_SAVE_TYPE, SCENARIO_DELIMITER, \
-    SCENARIO_ENTITY_NAME, SCENARIO_ID_FIELD, SCENARIO_TEMP_SAVE_LOCATION, SCENARIO_DEFAULT_IMPORT_MODE, \
-    SCENARIO_HARD_DELETE_CONDITION_IN_YEARS, SCENARIO_ENFORCE_DATA_MODEL, SCENARIO_IS_APPLY_YEAR_TO_SAVE_LOCATION
+    SCENARIO_IMPORT_SAVE_LOCATION, SCENARIO_IMPORT_SAVE_TYPE, SCENARIO_DELIMITER, \
+    SCENARIO_ENTITY_NAME, SCENARIO_ID_FIELD, SCENARIO_TEMP_SAVE_LOCATION, SCENARIO_IMPORT_MODE, \
+    SCENARIO_HARD_DELETE_CONDITION_IN_YEARS, SCENARIO_ENFORCE_DATA_MODEL, SCENARIO_IS_APPLY_YEAR_TO_SAVE_LOCATION, \
+    SCENARIO_REPORT_SAVE_TYPE, SCENARIO_REPORT_SAVE_LOCATION
 
 
 def get_missing_fields(scenario_json_path, target: DataFrame):
@@ -24,27 +25,31 @@ def get_scenario_defaults(scenario_json_path):
     scenario = load_scenario(scenario_json_path)
 
     name = get_entity_name(scenario)
-    save_location = get_default_save_location(scenario)
+    import_save_location = get_import_save_location(scenario)
     temp_save_location = get_temp_save_location(scenario)
-    save_type = get_default_save_type(scenario)
-    import_mode = get_default_import_mode(scenario)
+    import_save_type = get_import_save_type(scenario)
+    import_mode = get_import_mode(scenario)
     id_field_name = get_id_field_name(scenario)
     delimiter = get_delimiter(scenario)
     hard_delete_in_years = get_hard_delete_condition_in_years(scenario)
     enforce_data_model = get_enforce_data_model(scenario)
     is_apply_year_to_save_location = get_is_apply_year_to_save_location(scenario)
+    report_save_location = get_report_save_location(scenario)
+    report_save_type = get_report_save_type(scenario)
 
     del scenario
     return name, \
-           save_location, \
+           import_save_location, \
            temp_save_location, \
-           save_type, \
+           import_save_type, \
            import_mode, \
            id_field_name, \
            delimiter, \
            hard_delete_in_years, \
            enforce_data_model, \
-           is_apply_year_to_save_location
+           is_apply_year_to_save_location, \
+           report_save_location, \
+           report_save_type
 
 
 def load_scenario(path):
@@ -64,20 +69,28 @@ def get_delimiter(scenario_json):
     return scenario_json[SCENARIO_DELIMITER]
 
 
-def get_default_save_location(scenario_json):
-    return f'{settings.default_data_location}{str(scenario_json[SCENARIO_DEFAULT_SAVE_LOCATION])}'
+def get_import_save_location(scenario_json):
+    return f'{settings.default_data_location}{str(scenario_json[SCENARIO_IMPORT_SAVE_LOCATION])}'
+
+
+def get_report_save_location(scenario_json):
+    return f'{settings.default_data_location}{str(scenario_json[SCENARIO_REPORT_SAVE_LOCATION])}'
 
 
 def get_is_apply_year_to_save_location(scenario_json):
     return bool(scenario_json[SCENARIO_IS_APPLY_YEAR_TO_SAVE_LOCATION])
 
 
-def get_default_save_type(scenario_json):
-    return scenario_json[SCENARIO_DEFAULT_SAVE_TYPE]
+def get_import_save_type(scenario_json):
+    return scenario_json[SCENARIO_IMPORT_SAVE_TYPE]
 
 
-def get_default_import_mode(scenario_json):
-    return scenario_json[SCENARIO_DEFAULT_IMPORT_MODE]
+def get_report_save_type(scenario_json):
+    return scenario_json[SCENARIO_REPORT_SAVE_TYPE]
+
+
+def get_import_mode(scenario_json):
+    return scenario_json[SCENARIO_IMPORT_MODE]
 
 
 def get_entity_name(scenario_json):

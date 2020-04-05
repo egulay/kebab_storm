@@ -3,12 +3,12 @@ import asyncio
 import time
 
 from conf import settings
-from etl.printer import print_sample_data_with_schema
-from executor import spark_session, logger
-from util.constants import CLI_INPUT_FILE_PATH, CLI_INPUT_FILE_DELIMITER
+from etl.importer import encrypt_and_import
+from etl.executor import spark_session, logger
+from util.constants import CLI_INPUT_FILE_PATH, CLI_DATE, CLI_SCENARIO_JSON_PATH
 
 
-# ex. --input-file ../data/50k_sales_records_corrupted.csv --delimiter ,
+# ex. --scenario ../../scenario/sales_records_scenario.json --input-file ../../data/50k_sales_records_corrupted.csv --date 2020-02-23
 async def main():
     await set_args()
 
@@ -16,8 +16,8 @@ async def main():
         f'###### KEBAB STORM STARTED | Active YAML Configuration: {settings.active_profile} '
         f'on Spark {spark_session.version} ######')
 
-    await print_sample_data_with_schema(spark_session, settings.active_config[CLI_INPUT_FILE_PATH].get(),
-                                        settings.active_config[CLI_INPUT_FILE_DELIMITER].get())
+    await encrypt_and_import(spark_session, settings.active_config[CLI_SCENARIO_JSON_PATH].get(),
+                             settings.active_config[CLI_INPUT_FILE_PATH].get(), settings.active_config[CLI_DATE].get())
 
 
 async def set_args():
@@ -25,14 +25,17 @@ async def set_args():
                                                  'cryptography (with AES) on UDF level with data quality checks based '
                                                  'on ETL scenarios in JSON format')
 
-    parser.add_argument('--input-file', '-if', dest=CLI_INPUT_FILE_PATH, metavar='/path/to/input_file.csv',
-                        help='File to print')
+    parser.add_argument('--scenario', '-scn', dest=CLI_SCENARIO_JSON_PATH, metavar='/path/to/scenario.json',
+                        help='Scenario JSON file path')
 
-    parser.add_argument('--delimiter', '-d', dest=CLI_INPUT_FILE_DELIMITER, metavar=';',
-                        help='Column delimiter for CSV file')
+    parser.add_argument('--input-file', '-if', dest=CLI_INPUT_FILE_PATH, metavar='/path/to/input_file.csv',
+                        help='File to import')
+
+    parser.add_argument('--date', '-d', dest=CLI_DATE, metavar='2020-01-01',
+                        help='Import date in YYYY-mm-dd format')
 
     args = parser.parse_args()
-    is_args_provided = None not in (args.cli_input_file_path, args.cli_input_file_delimiter)
+    is_args_provided = None not in (args.cli_scenario_json_path, args.cli_input_file_path, args.cli_date)
     if not is_args_provided:
         parser.error('Missing argument(s)')
 

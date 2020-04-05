@@ -3,12 +3,12 @@ import asyncio
 import time
 
 from conf import settings
-from etl.printer import print_soft_deleted
-from executor import spark_session, logger
-from util.constants import CLI_SCENARIO_JSON_PATH, CLI_CRYPTO_ACTION
+from etl.printer import print_sample_data_with_schema
+from etl.executor import spark_session, logger
+from util.constants import CLI_INPUT_FILE_PATH, CLI_INPUT_FILE_DELIMITER
 
 
-# ex. --scenario ../scenario/sales_records_scenario.json --crypto-action decrypted
+# ex. --input-file ../../data/50k_sales_records_corrupted.csv --delimiter ,
 async def main():
     await set_args()
 
@@ -16,8 +16,8 @@ async def main():
         f'###### KEBAB STORM STARTED | Active YAML Configuration: {settings.active_profile} '
         f'on Spark {spark_session.version} ######')
 
-    await print_soft_deleted(spark_session, settings.active_config[CLI_SCENARIO_JSON_PATH].get(),
-                             settings.active_config[CLI_CRYPTO_ACTION].get())
+    await print_sample_data_with_schema(spark_session, settings.active_config[CLI_INPUT_FILE_PATH].get(),
+                                        settings.active_config[CLI_INPUT_FILE_DELIMITER].get())
 
 
 async def set_args():
@@ -25,16 +25,16 @@ async def set_args():
                                                  'cryptography (with AES) on UDF level with data quality checks based '
                                                  'on ETL scenarios in JSON format')
 
-    parser.add_argument('--scenario', '-scn', dest=CLI_SCENARIO_JSON_PATH, metavar='/path/to/scenario.json',
-                        help='Scenario JSON file path')
+    parser.add_argument('--input-file', '-if', dest=CLI_INPUT_FILE_PATH, metavar='/path/to/input_file.csv',
+                        help='File to print')
 
-    parser.add_argument('--crypto-action', '-ca', dest=CLI_CRYPTO_ACTION, metavar='decrypted | encrypted',
-                        help='Print soft-deleted rows decrypted or encrypted')
+    parser.add_argument('--delimiter', '-d', dest=CLI_INPUT_FILE_DELIMITER, metavar=';',
+                        help='Column delimiter for CSV file')
 
     args = parser.parse_args()
-    is_args_provided = None not in (args.cli_scenario_json_path, args.cli_crypto_action)
+    is_args_provided = None not in (args.cli_input_file_path, args.cli_input_file_delimiter)
     if not is_args_provided:
-        parser.error(f'Missing argument(s)')
+        parser.error('Missing argument(s)')
 
     settings.active_config.set_args(args, dots=False)
 

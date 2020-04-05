@@ -21,7 +21,9 @@ async def execute_crypto_action(source: DataFrame, scenario_json_path, action: C
     scenario = load_scenario(scenario_json_path)
 
     columns_to_encrypt = find_encrypted_fields_map_as(scenario)
-    logger.info(f'{action.value} will be applied to following mapped column(s): {columns_to_encrypt}')
+    logger.info(
+        f'{action.value} will be applied to following mapped column(s): '
+        f'{", ".join(map(str, columns_to_encrypt)).strip()}')
 
     if action is CryptoAction.encrypt:
         result = reduce(lambda x_df, col_name: x_df.withColumn(col_name, generic_encrypt_udf(
