@@ -45,8 +45,6 @@ async def main():
         .withColumn(DAY_PARTITION_FIELD_NAME, func.lit(partition_name)) \
         .sort(func.desc('TOTAL_SALES_ENTRY'))
 
-    sample_report.show(truncate=False)
-
     logger.info(f'Save as {report_save_type} started')
     if str(report_save_type).startswith('parquet'):
         write_spark_parquet(sample_report,
