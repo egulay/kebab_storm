@@ -1,18 +1,21 @@
 import argparse
 import asyncio
 import time
+from datetime import datetime
 
 import pyspark.sql.functions as func
 
 from conf import settings
 from etl.importer import get_reporting_data
 from etl.reporter import spark_session, logger
-from util.constants import CLI_SCENARIO_JSON_PATH, CLI_DATE, CLI_INCLUDE_SOFT_DELETED
+from util.constants import CLI_SCENARIO_JSON_PATH, CLI_DATE, CLI_INCLUDE_SOFT_DELETED, DAY_PARTITION_FIELD_NAME
 from util.crypto.crypto_action import CryptoAction
-from util.etl_util import get_boolean
+from util.etl_util import get_boolean, get_day_partition_name_and_year
+from util.parquet_save_mode import ParquetSaveMode
+from util.parquet_util import write_spark_parquet, write_hive_table
 
+REPORT_NAME = 'Simple_Report'
 
-# TODO: Separate create report & print report
 
 # ex. --scenario ../../scenario/sales_records_scenario.json --include-soft-deleted nope --date 2020-02-23
 async def main():
@@ -24,7 +27,7 @@ async def main():
 
     # TODO: Add multiple day partition selection also update CLI
 
-    data, report_save_type, report_save_location = \
+    data, report_save_type, report_save_location, is_apply_year_to_save_location = \
         await get_reporting_data(spark_session,
                                  settings.active_config[CLI_SCENARIO_JSON_PATH].get(),
                                  CryptoAction.decrypt,
@@ -34,18 +37,39 @@ async def main():
     if data.rdd.isEmpty():
         exit(1)
 
+    partition_name, year = get_day_partition_name_and_year(datetime.today().strftime('%Y-%m-%d'))
+
     sample_report = data.select(data.COUNTRY, data.TOTALPROFIT) \
         .groupBy(data.COUNTRY) \
         .agg(func.count(data.COUNTRY).alias('TOTAL_SALES_ENTRY')) \
+        .withColumn(DAY_PARTITION_FIELD_NAME, func.lit(partition_name)) \
         .sort(func.desc('TOTAL_SALES_ENTRY'))
 
     sample_report.show(truncate=False)
 
-    # TODO: save will be implemented here
+    logger.info(f'Save as {report_save_type} started')
     if str(report_save_type).startswith('parquet'):
-        print('save as parquet')
+        write_spark_parquet(sample_report,
+                            f'{report_save_location}/{REPORT_NAME}' if not is_apply_year_to_save_location else
+                            f'{report_save_location}_{year}/{REPORT_NAME}',
+                            ParquetSaveMode.overwrite,
+                            DAY_PARTITION_FIELD_NAME)
+        logger.info(f'Save as {report_save_type} finished with partition day={partition_name}')
+        return
     elif str(report_save_type).startswith('table'):
-        print('save as table')
+        table_name = str(report_save_type).split('|')[1]
+        s_type = str(report_save_type).split('|')[0]
+        write_hive_table(table_name if not is_apply_year_to_save_location else f'{table_name}_{year}', sample_report,
+                         f'{report_save_location}/{REPORT_NAME}' if not is_apply_year_to_save_location
+                         else f'{report_save_location}_{year}/{REPORT_NAME}',
+                         ParquetSaveMode.overwrite, DAY_PARTITION_FIELD_NAME)
+        logger.info(
+            f'Save as {s_type} finished into {table_name} table with partition day={partition_name}')
+        return
+    else:
+        logger.error(f'Save mode {report_save_type} is not identified. Please check scenario JSON located in '
+                     f'{settings.active_config[CLI_SCENARIO_JSON_PATH].get()}')
+        exit(1)
 
 
 async def set_args():

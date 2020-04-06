@@ -54,7 +54,8 @@ async def get_reporting_data(spark_session: SparkSession, scenario_json_path: st
         data = data.where(f'{SOFT_DELETED_FIELD_NAME} IS NULL')
 
     return data if crypto_action == CryptoAction.encrypt else await \
-        execute_crypto_action(data, scenario_json_path, CryptoAction.decrypt), report_save_type, report_save_location
+        execute_crypto_action(data, scenario_json_path, CryptoAction.decrypt), report_save_type, \
+           report_save_location, is_apply_year_to_save_location
 
 
 async def hard_delete(spark_session: SparkSession, scenario_json_path):
@@ -329,7 +330,7 @@ async def encrypt_and_import(spark_session: SparkSession,
                             f'{import_save_location}_{year}',
                             ParquetSaveMode(import_mode),
                             DAY_PARTITION_FIELD_NAME)
-        logger.info(f'Save as {import_save_type} finished with partition day={partition_name}. '
+        logger.info(f'Save as {import_save_type} finished with partition day={partition_name} '
                     f'Import mode: {import_mode}')
         return
     elif str(import_save_type).startswith('table'):
@@ -339,10 +340,10 @@ async def encrypt_and_import(spark_session: SparkSession,
                          import_save_location if not is_apply_year_to_save_location
                          else f'{import_save_location}_{year}', ParquetSaveMode(import_mode), DAY_PARTITION_FIELD_NAME)
         logger.info(
-            f'Save as {s_type} finished into {table_name} table with partition day={partition_name}. '
+            f'Save as {s_type} finished into {table_name} table with partition day={partition_name} '
             f'Import mode: {import_mode}')
         return
     else:
         logger.error(f'Save mode {import_save_type} is not identified for {name} '
-                     f'entity. Please check scenario JSON located in {scenario_json_path}.')
+                     f'entity. Please check scenario JSON located in {scenario_json_path}')
         exit(1)
