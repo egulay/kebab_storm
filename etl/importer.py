@@ -43,7 +43,7 @@ async def get_reporting_data_between_dates(spark_session: SparkSession, scenario
     data = None
     if is_apply_year_to_save_location:
         if year_start != year_end:
-            locations = [f'{import_save_location}_{year}' for year in range(year_start, year_end+1)
+            locations = [f'{import_save_location}_{year}' for year in range(year_start, year_end + 1)
                          if hdfs_path_exist(spark_session, f'{import_save_location}_{year}')]
             for location in locations:
                 if data is None or data.rdd.isEmpty():
@@ -55,6 +55,8 @@ async def get_reporting_data_between_dates(spark_session: SparkSession, scenario
         else:
             data = read_spark_parquets_by_dates(spark_session, start_date, end_date,
                                                 f'{import_save_location}_{year_start}')
+    else:
+        data = read_spark_parquets_by_dates(spark_session, start_date, end_date, import_save_location)
 
     if data.rdd.isEmpty():
         logger.error('No data found')
