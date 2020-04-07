@@ -17,17 +17,41 @@ logger = get_logger(__name__, settings.logging_location,
                     f'{datetime.today().strftime("%Y-%m-%d")}.log', settings.active_profile)
 
 
+async def print_report_data(spark_session: SparkSession, scenario_json_path: str, report_name: str, day):
+    name, import_save_location, temp_save_location, import_save_type, import_mode, id_field_name, delimiter, \
+        hard_delete_in_years, enforce_data_model, is_apply_year_to_save_location, report_save_location, \
+        report_save_type = get_scenario_defaults(scenario_json_path)
+
+    partition_name, year = get_day_partition_name_and_year(day)
+
+    logger.info(f'Active action: Print report data for {report_name} based on {scenario_json_path} '
+                f'on day={partition_name}')
+
+    parquet_path = f'{f"{report_save_location}/{report_name}" if not is_apply_year_to_save_location else f"{report_save_location}_{year}/{report_name}"}' \
+                   f'/{DAY_PARTITION_FIELD_NAME}={partition_name}'
+
+    logger.info(f'Identified parquet path: {parquet_path}')
+    data = read_spark_parquet(spark_session, parquet_path)
+
+    if data.rdd.isEmpty():
+        logger.error('No data found')
+        return
+
+    await print_data_frame_with_schema(data)
+
+
 async def print_imported_data(spark_session: SparkSession, scenario_json_path: str, crypto_action: str,
                               day):
-    name, save_location, temp_save_location, save_type, import_mode, id_field_name, delimiter, hard_delete_in_years, \
-        enforce_data_model, is_apply_year_to_save_location = get_scenario_defaults(scenario_json_path)
+    name, import_save_location, temp_save_location, import_save_type, import_mode, id_field_name, delimiter, \
+        hard_delete_in_years, enforce_data_model, is_apply_year_to_save_location, report_save_location, \
+        report_save_type = get_scenario_defaults(scenario_json_path)
 
     partition_name, year = get_day_partition_name_and_year(day)
 
     logger.info(f'Active action: Print imported data for {name} entity defined in {scenario_json_path} '
                 f'on day={partition_name}')
 
-    parquet_path = f'{save_location if not is_apply_year_to_save_location else f"{save_location}_{year}"}' \
+    parquet_path = f'{import_save_location if not is_apply_year_to_save_location else f"{import_save_location}_{year}"}' \
                    f'/{DAY_PARTITION_FIELD_NAME}={partition_name}'
 
     data = read_spark_parquet(spark_session, parquet_path)
@@ -42,16 +66,17 @@ async def print_imported_data(spark_session: SparkSession, scenario_json_path: s
 
 
 async def print_soft_deleted(spark_session: SparkSession, scenario_json_path: str, crypto_action: str):
-    name, save_location, temp_save_location, save_type, import_mode, id_field_name, delimiter, hard_delete_in_years, \
-        enforce_data_model, is_apply_year_to_save_location = get_scenario_defaults(scenario_json_path)
+    name, import_save_location, temp_save_location, import_save_type, import_mode, id_field_name, delimiter, \
+        hard_delete_in_years, enforce_data_model, is_apply_year_to_save_location, report_save_location, \
+        report_save_type = get_scenario_defaults(scenario_json_path)
 
     logger.info(f'Active action: Print soft-deleted data for {name} entity defined in {scenario_json_path}')
 
     data = None
     if not is_apply_year_to_save_location:
-        data = read_spark_parquet(spark_session, save_location)
+        data = read_spark_parquet(spark_session, import_save_location)
     else:
-        for directory in hdfs_get_folder_names(spark_session, save_location):
+        for directory in hdfs_get_folder_names(spark_session, import_save_location):
             if data is not None and not data.rdd.isEmpty():
                 u_data = read_spark_parquet(spark_session, f'{settings.default_data_location}/{directory}')
                 if not u_data.rdd.isEmpty():
@@ -82,8 +107,9 @@ async def print_data_frame_with_schema(source: DataFrame):
 
 
 async def print_refined_data_with_schema(spark_session: SparkSession, scenario_json_path, source_file):
-    name, save_location, temp_save_location, save_type, import_mode, id_field_name, delimiter, hard_delete_in_years, \
-        enforce_data_model, is_apply_year_to_save_location = get_scenario_defaults(scenario_json_path)
+    name, import_save_location, temp_save_location, import_save_type, import_mode, id_field_name, delimiter, \
+        hard_delete_in_years, enforce_data_model, is_apply_year_to_save_location, report_save_location, \
+        report_save_type = get_scenario_defaults(scenario_json_path)
 
     if is_not_blank(source_file) and source_file.endswith('.csv'):
         logger.info(f'Printing refined data with schema information for {name} entity defined in {scenario_json_path}')

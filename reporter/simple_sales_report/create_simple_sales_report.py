@@ -6,44 +6,51 @@ from datetime import datetime
 import pyspark.sql.functions as func
 
 from conf import settings
-from etl.importer import get_reporting_data
-from etl.reporter import spark_session, logger
+from etl.importer import get_reporting_data, get_reporting_data_between_dates
+from reporter import spark_session, logger
+from reporter.simple_sales_report import START_DATE_INDEX, END_DATE_INDEX, REPORT_NAME
 from util.constants import CLI_SCENARIO_JSON_PATH, CLI_DATE, CLI_INCLUDE_SOFT_DELETED, DAY_PARTITION_FIELD_NAME
 from util.crypto.crypto_action import CryptoAction
 from util.etl_util import get_boolean, get_day_partition_name_and_year
 from util.parquet_save_mode import ParquetSaveMode
 from util.parquet_util import write_spark_parquet, write_hive_table
 
-REPORT_NAME = 'Simple_Report'
-
 
 # ex. --scenario ../../scenario/sales_records_scenario.json --include-soft-deleted nope --date 2020-02-23
+# ex. --scenario ../../scenario/sales_records_scenario.json --include-soft-deleted nope --date 2019-02-27->2020-12-01
 async def main():
     await set_args()
+    date_range_arg = settings.active_config[CLI_DATE].get(str)
+    date_range = date_range_arg.split('->')
 
     logger.info(
         f'###### KEBAB STORM STARTED | Active YAML Configuration: {settings.active_profile} '
         f'on Spark {spark_session.version} ######')
 
-    # TODO: Add multiple day partition selection also update CLI
-
-    data, report_save_type, report_save_location, is_apply_year_to_save_location = \
-        await get_reporting_data(spark_session,
-                                 settings.active_config[CLI_SCENARIO_JSON_PATH].get(),
-                                 CryptoAction.decrypt,
-                                 get_boolean(settings.active_config[CLI_INCLUDE_SOFT_DELETED].get()),
-                                 settings.active_config[CLI_DATE].get())
-
+    if len(date_range) == 1:
+        data, report_save_type, report_save_location, is_apply_year_to_save_location = \
+            await get_reporting_data(spark_session,
+                                     settings.active_config[CLI_SCENARIO_JSON_PATH].get(),
+                                     CryptoAction.decrypt,
+                                     get_boolean(settings.active_config[CLI_INCLUDE_SOFT_DELETED].get()),
+                                     date_range_arg)
+    else:
+        data, report_save_type, report_save_location, is_apply_year_to_save_location = \
+            await get_reporting_data_between_dates(spark_session,
+                                                   settings.active_config[CLI_SCENARIO_JSON_PATH].get(),
+                                                   CryptoAction.decrypt,
+                                                   False, str(date_range[START_DATE_INDEX]),
+                                                   str(date_range[END_DATE_INDEX]))
     if data.rdd.isEmpty():
         exit(1)
 
+    logger.info(f'Total rows which will be processed for {REPORT_NAME} is {str(data.count())}')
     partition_name, year = get_day_partition_name_and_year(datetime.today().strftime('%Y-%m-%d'))
 
     sample_report = data.select(data.COUNTRY, data.TOTALPROFIT) \
         .groupBy(data.COUNTRY) \
         .agg(func.count(data.COUNTRY).alias('TOTAL_SALES_ENTRY')) \
-        .withColumn(DAY_PARTITION_FIELD_NAME, func.lit(partition_name)) \
-        .sort(func.desc('TOTAL_SALES_ENTRY'))
+        .withColumn(DAY_PARTITION_FIELD_NAME, func.lit(partition_name))
 
     logger.info(f'Save as {report_save_type} started')
     if str(report_save_type).startswith('parquet'):
@@ -81,8 +88,9 @@ async def set_args():
     parser.add_argument('--include-soft-deleted', '-isd', dest=CLI_INCLUDE_SOFT_DELETED, metavar='yes | no',
                         help='Include soft deleted records into the report')
 
-    parser.add_argument('--date', '-d', dest=CLI_DATE, metavar='2020-01-01',
-                        help='Import date in YYYY-mm-dd format')
+    parser.add_argument('--date', '-d', dest=CLI_DATE, metavar='2019-01-01->2020-01-01 | 2019-01-01',
+                        help='Import date range in YYYY-mm-dd format. If date range is '
+                             'required the separator must be -> without white spaces')
 
     args = parser.parse_args()
     is_args_provided = None not in (args.cli_scenario_json_path, args.cli_include_soft_deleted, args.cli_date)

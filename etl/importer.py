@@ -18,12 +18,54 @@ from util.etl_util import generic_cast_map_as, generic_soft_delete_udf, get_day_
 from util.logger import get_logger
 from util.parquet_save_mode import ParquetSaveMode
 from util.parquet_util import write_spark_parquet, write_hive_table, read_spark_parquet, \
-    hdfs_delete, hdfs_get_folder_names, hdfs_get_folder_years_less_than
+    hdfs_delete, hdfs_get_folder_names, hdfs_get_folder_years_less_than, read_spark_parquets_by_dates, hdfs_path_exist
 from util.scenario_util import get_scenario_defaults, get_missing_fields, find_mapped_as_value, \
     load_scenario, find_field_is_encrypted
 
 logger = get_logger(__name__, settings.logging_location,
                     f'{datetime.today().strftime("%Y-%m-%d")}.log', settings.active_profile)
+
+
+async def get_reporting_data_between_dates(spark_session: SparkSession, scenario_json_path: str,
+                                           crypto_action: CryptoAction,
+                                           include_soft_deleted: bool, start_date, end_date):
+    name, import_save_location, temp_save_location, import_save_type, import_mode, id_field_name, delimiter, \
+        hard_delete_in_years, enforce_data_model, is_apply_year_to_save_location, report_save_location, \
+        report_save_type = get_scenario_defaults(scenario_json_path)
+
+    partition_name_start, year_start = get_day_partition_name_and_year(start_date)
+    partition_name_end, year_end = get_day_partition_name_and_year(end_date)
+
+    logger.info(f'Active action: Get reporting data for {name} entity defined in {scenario_json_path} '
+                f'between {start_date} and {end_date}')
+    spark_session.sparkContext.setJobDescription(f'Get reporting data for {name}')
+
+    data = None
+    if is_apply_year_to_save_location:
+        if year_start != year_end:
+            locations = [f'{import_save_location}_{year}' for year in range(year_start, year_end+1)
+                         if hdfs_path_exist(spark_session, f'{import_save_location}_{year}')]
+            for location in locations:
+                if data is None or data.rdd.isEmpty():
+                    data = read_spark_parquet(spark_session, location)
+                else:
+                    data = data.union(read_spark_parquet(spark_session, location))
+            data = data.withColumn(DATE_IMPORTED_FIELD_NAME, func.to_timestamp(DATE_IMPORTED_FIELD_NAME, "yyyyMMdd")) \
+                .filter(func.col(DATE_IMPORTED_FIELD_NAME).between(start_date, end_date))
+        else:
+            data = read_spark_parquets_by_dates(spark_session, start_date, end_date,
+                                                f'{import_save_location}_{year_start}')
+
+    if data.rdd.isEmpty():
+        logger.error('No data found')
+        return spark_session.createDataFrame([], StructType([StructField("no data", StringType(), True)]))
+
+    if not include_soft_deleted:
+        data = data.where(f'{SOFT_DELETED_FIELD_NAME} IS NULL')
+
+    return data if crypto_action == CryptoAction.encrypt else await \
+        execute_crypto_action(data, scenario_json_path, CryptoAction.decrypt), report_save_type, \
+           report_save_location, is_apply_year_to_save_location
 
 
 async def get_reporting_data(spark_session: SparkSession, scenario_json_path: str,

@@ -15,3 +15,4 @@ time.sleep(0.005)
 
 logger = get_logger(__name__, settings.logging_location,
                     f'{datetime.today().strftime("%Y-%m-%d")}.log', settings.active_profile)
+
