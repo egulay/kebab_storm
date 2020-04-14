@@ -4,6 +4,7 @@ import time
 from datetime import datetime
 
 import pyspark.sql.functions as func
+from pyspark.sql.types import DecimalType
 
 from conf import settings
 from etl.importer import get_reporting_data, get_reporting_data_between_dates
@@ -44,13 +45,13 @@ async def main():
     if data.rdd.isEmpty():
         exit(1)
 
-    logger.info(f'Total rows which will be processed for {REPORT_NAME} is {str(data.count())}')
+    logger.info(f'Total row(s) will be processed for {REPORT_NAME} is {str(data.count())}')
     partition_name, year = get_day_partition_name_and_year(datetime.today().strftime('%Y-%m-%d'))
 
     sample_report = data.select(data.COUNTRY, data.TOTALREVENUE) \
         .groupBy(data.COUNTRY) \
         .agg(func.count(data.COUNTRY).alias('TOTAL_SALES_ENTRY'),
-             func.sum(data.TOTALREVENUE).alias('TOTAL_SALES_REVENUE')) \
+             func.sum(data.TOTALREVENUE).cast(DecimalType()).alias('TOTAL_SALES_REVENUE')) \
         .withColumn(DAY_PARTITION_FIELD_NAME, func.lit(partition_name))
 
     logger.info(f'Save as {report_save_type} started')
