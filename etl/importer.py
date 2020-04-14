@@ -349,7 +349,8 @@ async def encrypt_and_import(spark_session: SparkSession,
     if enforce_data_model:
         missing_fields = get_missing_fields(scenario_json_path, raw_data)
         if missing_fields:
-            logger.error(f'Following field(s) are missing in the scenario file: {missing_fields}')
+            logger.error(f'Following field(s) are missing in the scenario file: '
+                         f'{", ".join(map(str, missing_fields)).strip()}')
             exit(1)
 
     logger.info(f'Raw data loaded from {input_file_path} for {name} entity')

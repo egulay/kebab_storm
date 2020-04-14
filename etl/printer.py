@@ -123,8 +123,9 @@ async def print_refined_data_with_schema(spark_session: SparkSession, scenario_j
         if enforce_data_model:
             missing_fields = get_missing_fields(scenario_json_path, data)
             if missing_fields:
-                logger.error(f'Following field(s) are missing in the scenario file: {missing_fields}')
-                return
+                logger.error(f'Following field(s) are missing in the scenario file: '
+                             f'{", ".join(map(str, missing_fields)).strip()}')
+                exit(1)
 
         logger.info(f'Data loaded from {source_file}')
         result = await validate_and_refine(scenario_json_path, data, datetime.today().strftime('%Y%m%d'))
@@ -132,6 +133,7 @@ async def print_refined_data_with_schema(spark_session: SparkSession, scenario_j
         return
 
     logger.error('input data file must be csv')
+    exit(1)
 
 
 async def print_sample_data_with_schema(spark_session: SparkSession, source_file, delimiter):
