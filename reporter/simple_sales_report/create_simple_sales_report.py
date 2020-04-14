@@ -81,16 +81,17 @@ async def set_args():
     parser = argparse.ArgumentParser(description='KebabStorm: A Spark driver for to demonstrate how to apply '
                                                  'cryptography (with AES) on UDF level with data quality checks based '
                                                  'on ETL scenarios in JSON format')
+    required_arguments = parser.add_argument_group('required arguments')
 
-    parser.add_argument('--scenario', '-scn', dest=CLI_SCENARIO_JSON_PATH, metavar='/path/to/scenario.json',
-                        help='Scenario JSON file path')
+    required_arguments.add_argument('--scenario', '-scn', dest=CLI_SCENARIO_JSON_PATH, metavar='/path/to/scenario.json',
+                                    help='Scenario JSON file path', required=True)
 
-    parser.add_argument('--include-soft-deleted', '-isd', dest=CLI_INCLUDE_SOFT_DELETED, metavar='yes | no',
-                        help='Include soft deleted records into the report')
+    required_arguments.add_argument('--include-soft-deleted', '-isd', dest=CLI_INCLUDE_SOFT_DELETED, metavar='yes | no',
+                                    help='Include soft deleted records into the report', required=True)
 
-    parser.add_argument('--date', '-d', dest=CLI_DATE, metavar='2019-01-01->2020-01-01 | 2019-01-01',
-                        help='Import date range in YYYY-mm-dd format. If date range is '
-                             'required the separator must be -> without white spaces')
+    required_arguments.add_argument('--date', '-d', dest=CLI_DATE, metavar='2019-01-01->2020-01-01 | 2019-01-01',
+                                    help='Import date range in YYYY-mm-dd format. If date range is '
+                                         'required the separator must be -> without white spaces', required=True)
 
     args = parser.parse_args()
     is_args_provided = None not in (args.cli_scenario_json_path, args.cli_include_soft_deleted, args.cli_date)

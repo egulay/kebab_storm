@@ -3,8 +3,8 @@ import asyncio
 import time
 
 from conf import settings
-from etl.importer import soft_delete
 from etl.executor import spark_session, logger
+from etl.importer import soft_delete
 from util.constants import CLI_SCENARIO_JSON_PATH, CLI_ID_VALUE
 
 
@@ -25,12 +25,13 @@ async def set_args():
     parser = argparse.ArgumentParser(description='KebabStorm: A Spark driver for to demonstrate how to apply '
                                                  'cryptography (with AES) on UDF level with data quality checks based '
                                                  'on ETL scenarios in JSON format')
+    required_arguments = parser.add_argument_group('required arguments')
 
-    parser.add_argument('--scenario', '-scn', dest=CLI_SCENARIO_JSON_PATH, metavar='/path/to/scenario.json',
-                        help='Scenario JSON file path')
+    required_arguments.add_argument('--scenario', '-scn', dest=CLI_SCENARIO_JSON_PATH, metavar='/path/to/scenario.json',
+                                    help='Scenario JSON file path', required=True)
 
-    parser.add_argument('--id_value', '-id', dest=CLI_ID_VALUE, metavar='0123456789',
-                        help='Row ID value to soft-delete')
+    required_arguments.add_argument('--id_value', '-id', dest=CLI_ID_VALUE, metavar='0123456789',
+                                    help='Row ID value to soft-delete', required=True)
 
     args = parser.parse_args()
     is_args_provided = None not in (args.cli_scenario_json_path, args.cli_id_value)

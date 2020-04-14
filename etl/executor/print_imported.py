@@ -3,8 +3,8 @@ import asyncio
 import time
 
 from conf import settings
-from etl.printer import print_imported_data
 from etl.executor import spark_session, logger
+from etl.printer import print_imported_data
 from util.constants import CLI_CRYPTO_ACTION, CLI_DATE, CLI_SCENARIO_JSON_PATH
 
 
@@ -24,15 +24,16 @@ async def set_args():
     parser = argparse.ArgumentParser(description='KebabStorm: A Spark driver for to demonstrate how to apply '
                                                  'cryptography (with AES) on UDF level with data quality checks based '
                                                  'on ETL scenarios in JSON format')
+    required_arguments = parser.add_argument_group('required arguments')
 
-    parser.add_argument('--scenario', '-scn', dest=CLI_SCENARIO_JSON_PATH, metavar='/path/to/scenario.json',
-                        help='Scenario JSON file path')
+    required_arguments.add_argument('--scenario', '-scn', dest=CLI_SCENARIO_JSON_PATH, metavar='/path/to/scenario.json',
+                                    help='Scenario JSON file path', required=True)
 
-    parser.add_argument('--crypto-action', '-ca', dest=CLI_CRYPTO_ACTION, metavar='decrypted | encrypted',
-                        help='Print data decrypted or encrypted')
+    required_arguments.add_argument('--crypto-action', '-ca', dest=CLI_CRYPTO_ACTION, metavar='decrypted | encrypted',
+                                    help='Print data decrypted or encrypted', required=True)
 
-    parser.add_argument('--date', '-d', dest=CLI_DATE, metavar='2020-01-01',
-                        help='Imported date in YYYY-mm-dd format')
+    required_arguments.add_argument('--date', '-d', dest=CLI_DATE, metavar='2020-01-01',
+                                    help='Imported date in YYYY-mm-dd format', required=True)
 
     args = parser.parse_args()
     is_args_provided = None not in (args.cli_scenario_json_path, args.cli_crypto_action, args.cli_date)

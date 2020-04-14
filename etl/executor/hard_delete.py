@@ -3,8 +3,8 @@ import asyncio
 import time
 
 from conf import settings
-from etl.importer import hard_delete
 from etl.executor import spark_session, logger
+from etl.importer import hard_delete
 from util.constants import CLI_SCENARIO_JSON_PATH
 
 
@@ -23,9 +23,10 @@ async def set_args():
     parser = argparse.ArgumentParser(description='KebabStorm: A Spark driver for to demonstrate how to apply '
                                                  'cryptography (with AES) on UDF level with data quality checks based '
                                                  'on ETL scenarios in JSON format')
+    required_arguments = parser.add_argument_group('required arguments')
 
-    parser.add_argument('--scenario', '-scn', dest=CLI_SCENARIO_JSON_PATH, metavar='/path/to/scenario.json',
-                        help='Scenario JSON file path')
+    required_arguments.add_argument('--scenario', '-scn', dest=CLI_SCENARIO_JSON_PATH, metavar='/path/to/scenario.json',
+                                    help='Scenario JSON file path', required=True)
 
     args = parser.parse_args()
     if args.cli_scenario_json_path is None:
