@@ -47,9 +47,10 @@ async def main():
     logger.info(f'Total rows which will be processed for {REPORT_NAME} is {str(data.count())}')
     partition_name, year = get_day_partition_name_and_year(datetime.today().strftime('%Y-%m-%d'))
 
-    sample_report = data.select(data.COUNTRY, data.TOTALPROFIT) \
+    sample_report = data.select(data.COUNTRY, data.TOTALREVENUE) \
         .groupBy(data.COUNTRY) \
-        .agg(func.count(data.COUNTRY).alias('TOTAL_SALES_ENTRY')) \
+        .agg(func.count(data.COUNTRY).alias('TOTAL_SALES_ENTRY'),
+             func.sum(data.TOTALREVENUE).alias('TOTAL_SALES_REVENUE')) \
         .withColumn(DAY_PARTITION_FIELD_NAME, func.lit(partition_name))
 
     logger.info(f'Save as {report_save_type} started')
