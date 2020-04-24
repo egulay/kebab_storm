@@ -8,8 +8,12 @@ from etl.importer import encrypt_and_import
 from util.constants import CLI_INPUT_FILE_PATH, CLI_DATE, CLI_SCENARIO_JSON_PATH
 
 
-# ex. --scenario ../../scenario/sales_records_scenario.json --input-file ../../data/50k_sales_records_corrupted.csv --date 2020-02-23
 async def main():
+    """
+    Execution Sample:
+        import.py --scenario ../../scenario/sales_records_scenario.json --input-file ../../data/50k_sales_records_corrupted.csv --date 2020-02-23
+    """
+    
     await set_args()
 
     logger.info(

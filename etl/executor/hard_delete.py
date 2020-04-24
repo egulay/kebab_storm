@@ -8,8 +8,12 @@ from etl.importer import hard_delete
 from util.constants import CLI_SCENARIO_JSON_PATH
 
 
-# ex. --scenario ../../scenario/sales_records_scenario.json
 async def main():
+    """
+    Execution Sample:
+        hard_delete.py --scenario ../../scenario/sales_records_scenario.json
+    """
+
     await set_args()
 
     logger.info(

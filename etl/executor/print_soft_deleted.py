@@ -8,8 +8,12 @@ from etl.printer import print_soft_deleted
 from util.constants import CLI_SCENARIO_JSON_PATH, CLI_CRYPTO_ACTION
 
 
-# ex. --scenario ../../scenario/sales_records_scenario.json --crypto-action decrypted
 async def main():
+    """
+    Execution Sample:
+        print_soft_deleted.py --scenario ../../scenario/sales_records_scenario.json --crypto-action decrypted
+    """
+
     await set_args()
 
     logger.info(

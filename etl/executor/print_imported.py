@@ -8,8 +8,12 @@ from etl.printer import print_imported_data
 from util.constants import CLI_CRYPTO_ACTION, CLI_DATE, CLI_SCENARIO_JSON_PATH
 
 
-# ex. --scenario ../../scenario/sales_records_scenario.json --crypto-action decrypted --date 2020-02-23
 async def main():
+    """
+    Execution Sample:
+        print_imported.py --scenario ../../scenario/sales_records_scenario.json --crypto-action decrypted --date 2020-02-23
+    """
+
     await set_args()
 
     logger.info(

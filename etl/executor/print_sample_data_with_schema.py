@@ -8,8 +8,12 @@ from etl.printer import print_sample_data_with_schema
 from util.constants import CLI_INPUT_FILE_PATH, CLI_INPUT_FILE_DELIMITER
 
 
-# ex. --input-file ../../data/50k_sales_records_corrupted.csv --delimiter ,
 async def main():
+    """
+    Execution Sample:
+        print_sample_data_with_schema.py --input-file ../../data/50k_sales_records_corrupted.csv --delimiter ,
+    """
+
     await set_args()
 
     logger.info(

@@ -8,9 +8,13 @@ from etl.importer import soft_delete
 from util.constants import CLI_SCENARIO_JSON_PATH, CLI_ID_VALUE
 
 
-# ex. --scenario ../../scenario/sales_records_scenario.json --id_value 897751939
-# ex. --scenario ../../scenario/sales_records_scenario.json --id_value 281291043
 async def main():
+    """
+    Execution Sample:
+        soft_delete.py --scenario ../../scenario/sales_records_scenario.json --id_value 897751939
+        soft_delete.py --scenario ../../scenario/sales_records_scenario.json --id_value 281291043
+    """
+
     await set_args()
 
     logger.info(

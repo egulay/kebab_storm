@@ -8,8 +8,12 @@ from etl.printer import print_refined_data_with_schema
 from util.constants import CLI_SCENARIO_JSON_PATH, CLI_INPUT_FILE_PATH
 
 
-# ex. --scenario ../../scenario/sales_records_scenario.json --input-file ../../data/50k_sales_records_corrupted.csv
 async def main():
+    """
+    Execution Sample:
+        refine_and_print.py --scenario ../../scenario/sales_records_scenario.json --input-file ../../data/50k_sales_records_corrupted.csv
+    """
+
     await set_args()
 
     logger.info(
