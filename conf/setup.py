@@ -1,9 +1,14 @@
-import os
+import asyncio
+import sys
 
 import confuse
+import os
 import yaml
 
 _THIS_FOLDER = os.path.dirname(os.path.abspath(__file__))
+
+if sys.platform == 'win32':
+    asyncio.set_event_loop_policy(asyncio.WindowsSelectorEventLoopPolicy())
 
 
 class Settings:

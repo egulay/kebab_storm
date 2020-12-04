@@ -16,7 +16,7 @@ def un_pad(s):
 
 
 def encrypt(key: str, raw: str) -> bytes:
-    m_key = pad(key) if len(key) < BS else key[0:BS]
+    m_key = bytes(pad(key) if len(key) < BS else key[0:BS], 'utf-8')
     raw = str(raw).encode('utf8')
     raw = pad(raw)
     iv = Random.new().read(AES.block_size)
@@ -25,7 +25,7 @@ def encrypt(key: str, raw: str) -> bytes:
 
 
 def decrypt(key: str, enc: str) -> bytes:
-    m_key = pad(key) if len(key) < BS else key[0:BS]
+    m_key = bytes(pad(key) if len(key) < BS else key[0:BS], 'utf-8')
     enc = base64.b64decode(enc)
     iv = enc[:16]
     cipher = AES.new(m_key[:BS], AES.MODE_CBC, iv)
