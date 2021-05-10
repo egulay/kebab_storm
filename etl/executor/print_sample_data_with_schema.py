@@ -18,7 +18,7 @@ async def main():
 
     logger.info(
         f'###### KEBAB STORM STARTED | Active YAML Configuration: {settings.active_profile} '
-        f'on Spark {spark_session.version} ######')
+        f'on Spark {spark_session.version} with application ID {spark_session.sparkContext.applicationId} ######')
 
     await print_sample_data_with_schema(spark_session, settings.active_config[CLI_INPUT_FILE_PATH].get(),
                                         settings.active_config[CLI_INPUT_FILE_DELIMITER].get())

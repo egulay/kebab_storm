@@ -19,7 +19,7 @@ async def main():
 
     logger.info(
         f'###### KEBAB STORM STARTED | Active YAML Configuration: {settings.active_profile} '
-        f'on Spark {spark_session.version} ######')
+        f'on Spark {spark_session.version} with application ID {spark_session.sparkContext.applicationId} ######')
 
     await soft_delete(spark_session, settings.active_config[CLI_SCENARIO_JSON_PATH].get(),
                       settings.active_config[CLI_ID_VALUE].get())
