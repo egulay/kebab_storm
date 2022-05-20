@@ -1,16 +1,16 @@
 # Kebab Storm
 ## Introduction
-A Spark driver for to demonstrate how to apply cryptography (with AES) on UDF level with data quality checks based on ETL scenarios in JSON format. Additionally, the solution have both row based soft and hard delete features.
+A Spark driver for to demonstrate how to apply cryptography (with AES) on UDF level with data quality checks and transformations based on ETL scenarios in JSON format. Additionally, the solution have both row based soft and hard delete features.
 ## Setup (Spark & Hadoop on localhost)
 ### Windows
 [Please use following link](https://phoenixnap.com/kb/install-spark-on-windows-10).
 ### Mac
 [Please use following link](https://notadatascientist.com/install-spark-on-macos/).
 ## Driver Settings
-All necessary Spark and driver specific settings are located in [/conf](https://github.com/egulay/kebab_storm/tree/master/conf) directory per environment.
+All necessary Spark and solution specific settings are located in [/conf](https://github.com/egulay/kebab_storm/tree/master/conf) directory per environment.
 For to set the default environment please refer [global.yml](https://github.com/egulay/kebab_storm/blob/master/conf/global.yml)
 
-## Execution
+## Features
 Executor scripts are located in [/etl/executor/](https://github.com/egulay/kebab_storm/tree/master/etl/executor) directory with the features below:
 * [Encrypt & Import](https://github.com/egulay/kebab_storm/blob/master/etl/executor/import.py)
 * [Print Imported](https://github.com/egulay/kebab_storm/blob/master/etl/executor/print_imported.py)
@@ -19,9 +19,125 @@ Executor scripts are located in [/etl/executor/](https://github.com/egulay/kebab
 * [Refine & Print](https://github.com/egulay/kebab_storm/blob/master/etl/executor/refine_and_print.py)
 * [Soft Delete](https://github.com/egulay/kebab_storm/blob/master/etl/executor/soft_delete.py)
 * [Hard Delete](https://github.com/egulay/kebab_storm/blob/master/etl/executor/hard_delete.py)
-
+### Scenario
 An example JSON based scenario located in [/scenario](https://github.com/egulay/kebab_storm/blob/master/scenario/sales_records_scenario.json) directory.
-### Samples
+```json
+{
+  "entity_name": "Sales",
+  "import_save_location": "//Sales",
+  "report_save_location": "//Sales_Reports",
+  "temp_save_location": "C://tmp//Sales",
+  "import_save_type": "parquet",
+  "report_save_type": "parquet",
+  "import_mode": "append",
+  "id_field": "Order_ID",
+  "delimiter": ",",
+  "hard_delete_condition_in_years": 3,
+  "enforce_data_model": true,
+  "is_apply_year_to_save_location": true,
+  "fields": [
+    {
+      "name": "Region",
+      "map_as": "REGION",
+      "type": "string",
+      "encryption_key": "6tzm3NpUfDgnz7SBvLXKJVFvHGnp7q",
+      "is_encrypted": true
+    },
+    {
+      "name": "Country",
+      "map_as": "COUNTRY",
+      "type": "string",
+      "encryption_key": "Y8RCFHrTv5GbPCEA4zp65M5BYfWfqk",
+      "is_encrypted": true
+    },
+    {
+      "name": "Item_Type",
+      "map_as": "ITEMTYPE",
+      "type": "string",
+      "encryption_key": "M6NgJPgfJ3xzkjsP5eMHzUJpjXSspE",
+      "is_encrypted": true
+    },
+    {
+      "name": "Sales_Channel",
+      "map_as": "SALESCHANNEL",
+      "type": "string",
+      "encryption_key": "CEY64MuGcnUyXpWtyA885thG9NPPks",
+      "is_encrypted": false
+    },
+    {
+      "name": "Order_Priority",
+      "map_as": "ORDERPRIORITY",
+      "type": "string",
+      "encryption_key": "GLF75Jet46dNnW2eyLD5AXs4JGLTHc",
+      "is_encrypted": false
+    },
+    {
+      "name": "Order_Date",
+      "map_as": "ORDERDATE",
+      "type": "timestamp|%m/%d/%Y|%Y-%m-%d",
+      "encryption_key": "PYHW7Nqtu7SNUcvXWZgadKqH2EQ7tGj8",
+      "is_encrypted": true
+    },
+    {
+      "name": "Order_ID",
+      "map_as": "ORDERID",
+      "type": "int",
+      "encryption_key": "n8ZddZeeLfA2qmpRMkXZ7unmdWqUMLmx",
+      "is_encrypted": true
+    },
+    {
+      "name": "Ship_Date",
+      "map_as": "SHIPDATE",
+      "type": "timestamp|%m/%d/%Y|%Y-%m-%d",
+      "encryption_key": "nLp8pXzWHpbKyAtn45HN7FGrdRM9jTf7",
+      "is_encrypted": true
+    },
+    {
+      "name": "Units_Sold",
+      "map_as": "UNITSOLD",
+      "type": "int",
+      "encryption_key": "CGvFGagy3qDham7W8gwjPzVaBtcf5EPc",
+      "is_encrypted": true
+    },
+    {
+      "name": "Unit_Price",
+      "map_as": "UNITPRICE",
+      "type": "double",
+      "encryption_key": "fUGjtwUwdYdzR2wrV7a5nDY4PptuRZB8",
+      "is_encrypted": false
+    },
+    {
+      "name": "Unit_Cost",
+      "map_as": "UNITCOST",
+      "type": "double",
+      "encryption_key": "egR6r5UKNj4URcM4Af2YMYC9QXyzw2dP",
+      "is_encrypted": true
+    },
+    {
+      "name": "Total_Revenue",
+      "map_as": "TOTALREVENUE",
+      "type": "double",
+      "encryption_key": "JpM2qSZH2u5JmCaqY7WnMmjN4vrKHtff",
+      "is_encrypted": true
+    },
+    {
+      "name": "Total_Cost",
+      "map_as": "TOTALCOST",
+      "type": "double",
+      "encryption_key": "W57xBz8DgZte8CpPpHMu2NN2uEyGzAfd",
+      "is_encrypted": true
+    },
+    {
+      "name": "Total_Profit",
+      "map_as": "TOTALPROFIT",
+      "type": "double",
+      "encryption_key": "3t2NqvPThFZRhQyguqPYcruREKCjqYfJ",
+      "is_encrypted": true
+    }
+  ]
+}
+```
+### Execution
 #### Encrypt & Import
 ```sh
    import.py --scenario ../../scenario/sales_records_scenario.json --input-file ../../data/50k_sales_records_corrupted.csv --date 2020-02-23
@@ -172,7 +288,7 @@ only showing top 20 rows
 
 Total Count: 50000
 ```
-#### Example Report
+#### Report Generation from Imported Data
 ##### Create
 An example report implementation located in [/reporter/simple_sales_report](https://github.com/egulay/kebab_storm/blob/master/reporter/simple_sales_report/create_simple_sales_report.py) directory.
 ```sh
@@ -199,7 +315,7 @@ create_simple_sales_report.py --scenario ../../scenario/sales_records_scenario.j
 2022-05-20 09:50:24,219 - reporter - INFO - Save as parquet finished with partition day=20220520
 2022-05-20 09:50:24,220 - reporter - INFO - C:/Users/emreg/PycharmProjects/kebab_storm/reporter/simple_sales_report/create_simple_sales_report.py executed in 32.35 seconds
 ```
-#### Print Example Report
+#### Print Report
 An example report printer located in [reporter/simple_sales_report](https://github.com/egulay/kebab_storm/blob/master/reporter/simple_sales_report/print_simple_sales_report.py) directory.
 ```sh
 print_simple_sales_report.py  --scenario ../../scenario/sales_records_scenario.json --date 2022-05-20
