@@ -1,6 +1,6 @@
 # Kebab Storm
 ## Introduction
-A Spark driver for to demonstrate how to apply cryptography (with AES) on UDF level with data quality checks and transformations based on ETL scenarios in JSON format. Additionally, the solution have both row based soft and hard delete features.
+A Spark driver for to demonstrate how to apply cryptography (with AES) on UDF level with data quality checks and transformations based on ETL scenarios in JSON format. Additionally, the solution has both row based soft and hard delete features.
 ## Setup (Spark & Hadoop on localhost)
 ### Windows
 [Please use following link](https://phoenixnap.com/kb/install-spark-on-windows-10).
