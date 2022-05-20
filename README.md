@@ -309,7 +309,6 @@ create_simple_sales_report.py --scenario ../../scenario/sales_records_scenario.j
 2022-05-20 09:49:51,882 - reporter - INFO - ###### KEBAB STORM STARTED | Active YAML Configuration: local on Spark 3.0.1 ######
 2022-05-20 09:49:51,891 - etl.importer - INFO - Active action: Get reporting data for Sales entity defined in ..\..\scenario\sales_records_scenario.json on day=20200223
 2022-05-20 09:49:59,286 - etl.crypter - INFO - Decryption will be applied to following mapped column(s): REGION, COUNTRY, ITEMTYPE, ORDERDATE, ORDERID, SHIPDATE, UNITSOLD, UNITCOST, TOTALREVENUE, TOTALCOST, TOTALPROFIT
-22/05/20 09:50:06 WARN ProcfsMetricsGetter: Exception when trying to compute pagesize, as a result reporting of ProcessTree metrics is stopped
 2022-05-20 09:50:08,303 - reporter - INFO - Total row(s) will be processed for Simple_Report is 50000
 2022-05-20 09:50:08,385 - reporter - INFO - Save as parquet started
 2022-05-20 09:50:24,219 - reporter - INFO - Save as parquet finished with partition day=20220520
