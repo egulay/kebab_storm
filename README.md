@@ -3,9 +3,9 @@
 A Spark driver for to demonstrate how to apply cryptography (with AES) on UDF level with data quality checks and transformations based on ETL scenarios in JSON format. Additionally, the solution has both row based soft and hard delete features.
 ## Setup (Spark & Hadoop on localhost)
 ### Windows
-[Please use following link](https://phoenixnap.com/kb/install-spark-on-windows-10).
+Please use this [link](https://phoenixnap.com/kb/install-spark-on-windows-10).
 ### Mac
-[Please use following link](https://notadatascientist.com/install-spark-on-macos/).
+Please use this [link](https://notadatascientist.com/install-spark-on-macos/).
 ## Driver Settings
 All necessary Spark and solution specific settings are located in [/conf](https://github.com/egulay/kebab_storm/tree/master/conf) directory per environment.
 For to set the default environment please refer [global.yml](https://github.com/egulay/kebab_storm/blob/master/conf/global.yml)
