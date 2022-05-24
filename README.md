@@ -240,7 +240,6 @@ print_imported.py --scenario ../../scenario/sales_records_scenario.json --crypto
 2022-05-20 09:37:46,894 - etl.executor - INFO - ###### KEBAB STORM STARTED | Active YAML Configuration: local on Spark 3.0.1 with application ID local-1653028665290 ######
 2022-05-20 09:37:46,903 - etl.printer - INFO - Active action: Print imported data for Sales entity defined in ../../scenario/sales_records_scenario.json on day=20200223
 2022-05-20 09:37:54,268 - etl.crypter - INFO - Decryption will be applied to following mapped column(s): REGION, COUNTRY, ITEMTYPE, ORDERDATE, ORDERID, SHIPDATE, UNITSOLD, UNITCOST, TOTALREVENUE, TOTALCOST, TOTALPROFIT
-22/05/20 09:38:01 WARN ProcfsMetricsGetter: Exception when trying to compute pagesize, as a result reporting of ProcessTree metrics is stopped
 root
  |-- REGION: string (nullable = true)
  |-- COUNTRY: string (nullable = true)
