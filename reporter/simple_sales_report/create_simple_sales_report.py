@@ -26,7 +26,7 @@ async def main():
 
     logger.info(
         f'###### KEBAB STORM STARTED | Active YAML Configuration: {settings.active_profile} '
-        f'on Spark {spark_session.version} ######')
+        f'on Spark {spark_session.version} with application ID {spark_session.sparkContext.applicationId} ######')
 
     if len(date_range) == 1:
         data, report_save_type, report_save_location, is_apply_year_to_save_location = \
