@@ -30,8 +30,8 @@ async def get_reporting_data_between_dates(spark_session: SparkSession, scenario
                                            crypto_action: CryptoAction,
                                            include_soft_deleted: bool, start_date, end_date):
     name, import_save_location, temp_save_location, import_save_type, import_mode, id_field_name, delimiter, \
-        hard_delete_in_years, enforce_data_model, is_apply_year_to_save_location, report_save_location, \
-        report_save_type = get_scenario_defaults(scenario_json_path)
+    hard_delete_in_years, enforce_data_model, is_apply_year_to_save_location, report_save_location, \
+    report_save_type = get_scenario_defaults(scenario_json_path)
 
     partition_name_start, year_start = get_day_partition_name_and_year(start_date)
     partition_name_end, year_end = get_day_partition_name_and_year(end_date)
@@ -74,8 +74,8 @@ async def get_reporting_data(spark_session: SparkSession, scenario_json_path: st
                              crypto_action: CryptoAction,
                              include_soft_deleted: bool, day):
     name, import_save_location, temp_save_location, import_save_type, import_mode, id_field_name, delimiter, \
-        hard_delete_in_years, enforce_data_model, is_apply_year_to_save_location, report_save_location, \
-        report_save_type = get_scenario_defaults(scenario_json_path)
+    hard_delete_in_years, enforce_data_model, is_apply_year_to_save_location, report_save_location, \
+    report_save_type = get_scenario_defaults(scenario_json_path)
 
     partition_name, year = get_day_partition_name_and_year(day)
 
@@ -104,8 +104,8 @@ async def get_reporting_data(spark_session: SparkSession, scenario_json_path: st
 
 async def hard_delete(spark_session: SparkSession, scenario_json_path):
     name, import_save_location, temp_save_location, import_save_type, import_mode, id_field_name, delimiter, \
-        hard_delete_in_years, enforce_data_model, is_apply_year_to_save_location, report_save_location, \
-        report_save_type = get_scenario_defaults(scenario_json_path)
+    hard_delete_in_years, enforce_data_model, is_apply_year_to_save_location, report_save_location, \
+    report_save_type = get_scenario_defaults(scenario_json_path)
 
     logger.info(f'Active action: Hard delete for {name} entity defined in {scenario_json_path}')
     spark_session.sparkContext.setJobDescription(f'Hard delete for {name}')
@@ -201,19 +201,19 @@ async def hard_delete(spark_session: SparkSession, scenario_json_path):
         exit(1)
 
 
-async def soft_delete(spark_session: SparkSession, scenario_json_path, id_value_to_soft_delete):
+async def soft_delete(spark_session: SparkSession, scenario_json_path, id_values_to_soft_delete):
     name, import_save_location, temp_save_location, import_save_type, import_mode, id_field_name, delimiter, \
-        hard_delete_in_years, enforce_data_model, is_apply_year_to_save_location, report_save_location, \
-        report_save_type = get_scenario_defaults(scenario_json_path)
+    hard_delete_in_years, enforce_data_model, is_apply_year_to_save_location, report_save_location, \
+    report_save_type = get_scenario_defaults(scenario_json_path)
 
     scenario = load_scenario(scenario_json_path)
     mapped_id_field_name = find_mapped_as_value(scenario, id_field_name)
     is_id_field_encrypted = find_field_is_encrypted(scenario, id_field_name)
     logger.info(
         f'Active action: Soft delete on {name} entity defined in {scenario_json_path} for '
-        f'{mapped_id_field_name}={id_value_to_soft_delete}')
+        f'{mapped_id_field_name}={id_values_to_soft_delete}')
     spark_session.sparkContext.setJobDescription(f'Soft delete for {name} - '
-                                                 f'{mapped_id_field_name}={id_value_to_soft_delete}')
+                                                 f'{mapped_id_field_name}={id_values_to_soft_delete}')
 
     found_in_parquets = None
     if not is_apply_year_to_save_location:
@@ -238,22 +238,26 @@ async def soft_delete(spark_session: SparkSession, scenario_json_path, id_value_
         data = found_in_parquets \
             .withColumn(mapped_id_field_name, generic_decrypt_udf(
                 func.struct(mapped_id_field_name, func.lit(mapped_id_field_name),
-                        func.lit(json.dumps(scenario)))).cast(
-                generic_cast_map_as(scenario, mapped_id_field_name))) \
-            .withColumn(SOFT_DELETED_FIELD_NAME, generic_soft_delete_udf(
-                func.struct(mapped_id_field_name, func.lit(id_value_to_soft_delete), SOFT_DELETED_FIELD_NAME))
-                        .cast(TimestampType())) \
-            .withColumn(DAY_PARTITION_FIELD_NAME, func.col(DATE_IMPORTED_FIELD_NAME)) \
-            .withColumn(mapped_id_field_name, generic_encrypt_udf(
-                func.struct(mapped_id_field_name, func.lit(mapped_id_field_name),
+                        func.lit(json.dumps(scenario)))).cast(generic_cast_map_as(scenario, mapped_id_field_name)))
+
+        for row_value in str(id_values_to_soft_delete).strip().split(','):
+            data = data.withColumn(SOFT_DELETED_FIELD_NAME, generic_soft_delete_udf(
+                func.struct(mapped_id_field_name, func.lit(row_value), SOFT_DELETED_FIELD_NAME))
+                                   .cast(TimestampType()))
+
+        data = data.withColumn(mapped_id_field_name, generic_encrypt_udf(
+            func.struct(mapped_id_field_name, func.lit(mapped_id_field_name),
                         func.lit(json.dumps(scenario)))).cast(BinaryType()))
+
     else:
         spark_session.sparkContext.setJobDescription(f'Soft delete for {name} - read partition')
-        data = found_in_parquets \
-            .withColumn(SOFT_DELETED_FIELD_NAME, generic_soft_delete_udf(
-                func.struct(mapped_id_field_name, func.lit(id_value_to_soft_delete), SOFT_DELETED_FIELD_NAME))
-                        .cast(TimestampType())) \
-            .withColumn(DAY_PARTITION_FIELD_NAME, func.col(DATE_IMPORTED_FIELD_NAME))
+
+        data = found_in_parquets.withColumn(DAY_PARTITION_FIELD_NAME, func.col(DATE_IMPORTED_FIELD_NAME))
+
+        for row_value in str(id_values_to_soft_delete).strip().split(','):
+            data = data.withColumn(SOFT_DELETED_FIELD_NAME, generic_soft_delete_udf(
+                func.struct(mapped_id_field_name, func.lit(row_value), SOFT_DELETED_FIELD_NAME))
+                                   .cast(TimestampType()))
 
     spark_session.sparkContext.setJobDescription(f'Soft delete for {name} - write partition')
     if str(import_save_type).startswith('parquet'):
@@ -332,8 +336,8 @@ async def encrypt_and_import(spark_session: SparkSession,
                              scenario_json_path: str, input_file_path: str,
                              day: str):
     name, import_save_location, temp_save_location, import_save_type, import_mode, id_field_name, delimiter, \
-        hard_delete_in_years, enforce_data_model, is_apply_year_to_save_location, report_save_location, \
-        report_save_type = get_scenario_defaults(scenario_json_path)
+    hard_delete_in_years, enforce_data_model, is_apply_year_to_save_location, report_save_location, \
+    report_save_type = get_scenario_defaults(scenario_json_path)
 
     partition_name, year = get_day_partition_name_and_year(day)
 

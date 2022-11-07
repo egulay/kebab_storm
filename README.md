@@ -5,7 +5,7 @@ A Spark driver for to demonstrate how to apply cryptography (with AES) on UDF le
 ### Windows
 Please use this [link](https://phoenixnap.com/kb/install-spark-on-windows-10).
 ### Mac
-Please use this [link](https://notadatascientist.com/install-spark-on-macos/).
+Please use this [link](https://sparkbyexamples.com/spark/install-apache-spark-on-mac/).
 ## Driver Settings
 All necessary Spark and solution specific settings are located in [/conf](https://github.com/egulay/kebab_storm/tree/master/conf) directory per environment.
 For to set the default environment please refer [global.yml](https://github.com/egulay/kebab_storm/blob/master/conf/global.yml)

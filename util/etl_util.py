@@ -122,7 +122,7 @@ def generic_soft_delete(row_value, id_value_to_delete, soft_deleted_value):
         logger = class_for_name(REFINER_MODULE_NAME, REFINER_LOGGER_NAME)
 
         soft_deleted = datetime.today().strftime('%Y-%m-%d')
-        logger.info(f'Record found. Soft-delete applied as {soft_deleted}')
+        logger.info(f'Record with id {id_value_to_delete} found. Soft-delete applied as {soft_deleted}')
         return soft_deleted
 
         # x_years_old = 3

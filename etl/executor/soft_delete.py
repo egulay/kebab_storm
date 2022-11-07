@@ -5,14 +5,13 @@ import time
 from conf import settings
 from etl.executor import spark_session, logger
 from etl.importer import soft_delete
-from util.constants import CLI_SCENARIO_JSON_PATH, CLI_ID_VALUE
+from util.constants import CLI_SCENARIO_JSON_PATH, CLI_ID_VALUES
 
 
 async def main():
     """
     Execution Sample:
-        soft_delete.py --scenario ../../scenario/sales_records_scenario.json --id_value 897751939
-        soft_delete.py --scenario ../../scenario/sales_records_scenario.json --id_value 281291043
+        soft_delete.py --scenario ../../scenario/sales_records_scenario.json --id_values 897892701,988647067,926870000,118860328,291229379,540900981
     """
 
     await set_args()
@@ -22,7 +21,7 @@ async def main():
         f'on Spark {spark_session.version} with application ID {spark_session.sparkContext.applicationId} ######')
 
     await soft_delete(spark_session, settings.active_config[CLI_SCENARIO_JSON_PATH].get(),
-                      settings.active_config[CLI_ID_VALUE].get())
+                      settings.active_config[CLI_ID_VALUES].get())
 
 
 async def set_args():
@@ -34,11 +33,11 @@ async def set_args():
     required_arguments.add_argument('--scenario', '-scn', dest=CLI_SCENARIO_JSON_PATH, metavar='/path/to/scenario.json',
                                     help='Scenario JSON file path', required=True)
 
-    required_arguments.add_argument('--id_value', '-id', dest=CLI_ID_VALUE, metavar='0123456789',
-                                    help='Row ID value to soft-delete', required=True)
+    required_arguments.add_argument('--id_values', '-ids', dest=CLI_ID_VALUES, metavar='897892701,988647067',
+                                    help='Comma seperated row ID values to soft-delete', required=True)
 
     args = parser.parse_args()
-    is_args_provided = None not in (args.cli_scenario_json_path, args.cli_id_value)
+    is_args_provided = None not in (args.cli_scenario_json_path, args.cli_id_values)
     if not is_args_provided:
         parser.error('Missing parameter value(s). For information execute with --help')
 
