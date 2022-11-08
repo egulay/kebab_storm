@@ -162,6 +162,36 @@ An example JSON based scenario located in [/scenario](https://github.com/egulay/
 }
 ```
 ### Execution
+#### Help
+```sh
+import.py --help
+```
+```sh
+ ____  __.    ___.         ___.     _________ __
+|    |/ _|____\_ |__ _____ \_ |__  /   _____//  |_  ___________  _____
+|      <_/ __ \| __ \\__  \ | __ \ \_____  \\   __\/  _ \_  __ \/     \
+|    |  \  ___/| \_\ \/ __ \| \_\ \/        \|  | (  <_> )  | \/  Y Y  \
+|____|__ \___  >___  (____  /___  /_______  /|__|  \____/|__|  |__|_|  /
+        \/   \/    \/     \/    \/        \/                         \/
+usage: import.py [-h] --scenario /path/to/scenario.json OR
+                 https://domain.com/scenario-id --input-file
+                 /path/to/input_file.csv --date 2020-01-01
+
+KebabStorm: A Spark driver for to demonstrate how to apply cryptography (with
+AES) on UDF level with data quality checks based on ETL scenarios in JSON
+format
+
+optional arguments:
+  -h, --help            show this help message and exit
+
+required arguments:
+  --scenario /path/to/scenario.json OR https://domain.com/scenario-id, -scn /path/to/scenario.json OR https://domain.com/scenario-id
+                        Scenario JSON file path or URL
+  --input-file /path/to/input_file.csv, -if /path/to/input_file.csv
+                        File to import
+  --date 2020-01-01, -d 2020-01-01
+                        Import date in YYYY-mm-dd format
+```
 #### Encrypt & Import
 ```sh
 import.py --scenario ../../scenario/sales_records_scenario.json --input-file ../../data/50k_sales_records_corrupted.csv --date 2020-02-23
