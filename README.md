@@ -6,6 +6,30 @@ A Spark driver for to demonstrate how to apply cryptography (with AES) on UDF le
 Please use this [link](https://phoenixnap.com/kb/install-spark-on-windows-10).
 ### Mac
 Please use this [link](https://sparkbyexamples.com/spark/install-apache-spark-on-mac/).
+## External Dependencies (requirements.txt)
+```sh
+certifi==2022.9.24
+charset-normalizer==3.0.0
+confuse==2.0.0
+dateutils==0.6.12
+decorator==5.1.1
+docopt==0.6.2
+idna==3.4
+numpy==1.23.4
+pipreqs==0.4.11
+protobuf==4.21.9
+py4j==0.10.9.7
+pycryptodome==3.15.0
+pyspark==3.3.1
+python-dateutil==2.8.2
+pytz==2022.6
+PyYAML==6.0
+requests==2.28.1
+six==1.16.0
+urllib3==1.26.12
+validators==0.20.0
+yarg==0.1.9
+```
 ## Driver Settings
 All necessary Spark and solution specific settings are located in [/conf](https://github.com/egulay/kebab_storm/tree/master/conf) directory per environment.
 For to set the default environment please refer [global.yml](https://github.com/egulay/kebab_storm/blob/master/conf/global.yml)
@@ -24,9 +48,9 @@ An example JSON based scenario located in [/scenario](https://github.com/egulay/
 ```json
 {
   "entity_name": "Sales",
-  "import_save_location": "//Sales",
-  "report_save_location": "//Sales_Reports",
-  "temp_save_location": "C://tmp//Sales",
+  "import_save_location": "/Sales",
+  "report_save_location": "/Sales_Reports",
+  "temp_save_location": "/Users/emregulay/tmp/Sales",
   "import_save_type": "parquet",
   "report_save_type": "parquet",
   "import_mode": "append",
@@ -140,7 +164,7 @@ An example JSON based scenario located in [/scenario](https://github.com/egulay/
 ### Execution
 #### Encrypt & Import
 ```sh
-   import.py --scenario ../../scenario/sales_records_scenario.json --input-file ../../data/50k_sales_records_corrupted.csv --date 2020-02-23
+import.py --scenario ../../scenario/sales_records_scenario.json --input-file ../../data/50k_sales_records_corrupted.csv --date 2020-02-23
 ```
 
 ```sh

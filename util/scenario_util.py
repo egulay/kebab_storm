@@ -1,5 +1,7 @@
 import json
+from urllib.request import urlopen
 
+import validators
 from pyspark.sql import DataFrame
 
 from conf import settings
@@ -53,6 +55,9 @@ def get_scenario_defaults(scenario_json_path):
 
 
 def load_scenario(path):
+    if validators.url(path):
+        return json.loads(urlopen(path).read())
+
     with open(path, 'r') as active_scenario:
         return json.load(active_scenario)
 

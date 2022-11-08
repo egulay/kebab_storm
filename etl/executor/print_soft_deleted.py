@@ -30,8 +30,9 @@ async def set_args():
                                                  'on ETL scenarios in JSON format')
     required_arguments = parser.add_argument_group('required arguments')
 
-    required_arguments.add_argument('--scenario', '-scn', dest=CLI_SCENARIO_JSON_PATH, metavar='/path/to/scenario.json',
-                                    help='Scenario JSON file path', required=True)
+    required_arguments.add_argument('--scenario', '-scn', dest=CLI_SCENARIO_JSON_PATH,
+                                    metavar='/path/to/scenario.json OR https://domain.com/scenario-id',
+                                    help='Scenario JSON file path or URL', required=True)
 
     required_arguments.add_argument('--crypto-action', '-ca', dest=CLI_CRYPTO_ACTION, metavar='decrypted | encrypted',
                                     help='Print soft-deleted rows decrypted or encrypted', required=True)
