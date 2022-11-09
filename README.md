@@ -163,6 +163,7 @@ An example JSON based scenario located in [/scenario](https://github.com/egulay/
 ```
 ### Execution
 #### Help
+Each executor file has help text similar to below.
 ```sh
 import.py --help
 ```
@@ -222,7 +223,7 @@ import.py --scenario ../../scenario/sales_records_scenario.json --input-file ../
 #### Print Imported Data
 ##### Encrypted
 ```sh
-print_imported.py --scenario ../../scenario/sales_records_scenario.json --crypto-action decrypted --date 2020-02-23
+print_imported.py --scenario ../../scenario/sales_records_scenario.json --crypto-action encrypted --date 2020-02-23
 ```
 ```sh
  ____  __.    ___.         ___.     _________ __
