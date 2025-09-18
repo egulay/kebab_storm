@@ -1,21 +1,31 @@
-certifi==2022.9.24
-charset-normalizer==3.0.0
-confuse==2.0.0
-dateutils==0.6.12
-decorator==5.1.1
+# --- Spark stack ---
+# Use PySpark 4.x on Python >=3.9; fall back to a 3.x LTS on Python <3.9
+pyspark==4.0.1; python_version >= "3.9"
+pyspark==3.4.3; python_version < "3.9"
+
+# NumPy wheels vary by Python version:
+numpy==2.0.2; python_version < "3.10" and python_version >= "3.9"
+numpy==1.24.4; python_version < "3.9"          # (e.g., Python 3.8)
+numpy==2.2.6; python_version == "3.10"
+numpy==2.3.3; python_version >= "3.11"
+
+# --- Date/time & serialization ---
+python-dateutil==2.9.0.post0
+pytz==2025.2
+PyYAML==6.0.2
+protobuf==6.32.1
+
+# --- CLI / config helpers ---
 docopt==0.6.2
-idna==3.4
-numpy==1.23.4
-pipreqs==0.4.11
-protobuf==4.21.9
-py4j==0.10.9.7
-pycryptodome==3.15.0
-pyspark==3.3.1
-python-dateutil==2.8.2
-pytz==2022.6
-PyYAML==6.0
-requests==2.28.1
+confuse==2.0.1
+
+# --- HTTP stack (pin only top-level) ---
+requests==2.32.3
+
+# --- Security / misc ---
+pycryptodome==3.23.0
+validators==0.35.0
+yarg==0.1.10
+
+# Legacy helper (remove if unused)
 six==1.16.0
-urllib3==1.26.12
-validators==0.20.0
-yarg==0.1.9
