@@ -1,0 +1,205 @@
+{
+  "entity_name": "PersonalHealthRecords",
+  "import_save_location": "/Personal_Health_Records",
+  "report_save_location": "/Personal_Health_Record_Reports",
+  "temp_save_location": "/Users/emregulay/tmp/PersonalHealthRecords",
+  "import_save_type": "parquet",
+  "report_save_type": "parquet",
+  "import_mode": "append",
+  "id_field": "Patient_Record_ID",
+  "delimiter": ",",
+  "hard_delete_condition_in_years": 3,
+  "enforce_data_model": true,
+  "is_apply_year_to_save_location": true,
+  "fields": [
+    {
+      "name": "Patient_Record_ID",
+      "map_as": "PATIENT_RECORD_ID",
+      "type": "string|string",
+      "encryption_key": "xA2oJw_uzb7RYuqd2G6XuKsLxVFeNzZh",
+      "is_encrypted": true
+    },
+    {
+      "name": "Patient_Name",
+      "map_as": "PATIENT_NAME",
+      "type": "string|string",
+      "encryption_key": "AEl6tZmvfhHCdkdsTFRhgCcdmdwVM2HL",
+      "is_encrypted": true
+    },
+    {
+      "name": "Biological_Sex",
+      "map_as": "BIOLOGICAL_SEX",
+      "type": "string|string",
+      "encryption_key": "NqQ_uQX0CpWUQdNs0N_lEib_eCd0cZ4E",
+      "is_encrypted": true
+    },
+    {
+      "name": "Age_Text",
+      "map_as": "AGE",
+      "type": "string|integer",
+      "encryption_key": "_cQyJeF1k9fRT5UD2Sf-6Yv-SdzOsJla",
+      "is_encrypted": false
+    },
+    {
+      "name": "Visit_Count",
+      "map_as": "VISIT_COUNT_TEXT",
+      "type": "integer|string",
+      "encryption_key": "Rzi7fiC2U46FUIO8E2mJP7Id7gS1J6ow",
+      "is_encrypted": false
+    },
+    {
+      "name": "Medication_Count_Text",
+      "map_as": "MEDICATION_COUNT",
+      "type": "string|byte",
+      "encryption_key": "Og6L4lTHirnMS0r7tyG7cZmDSllCNgpG",
+      "is_encrypted": false
+    },
+    {
+      "name": "Height_CM_Text",
+      "map_as": "HEIGHT_CM",
+      "type": "string|decimal(5,2)",
+      "encryption_key": "n945QYfK1ituqm_gmste-UHnS6kMgaYE",
+      "is_encrypted": true
+    },
+    {
+      "name": "Weight_KG",
+      "map_as": "WEIGHT_KG_TEXT",
+      "type": "decimal(6,2)|string",
+      "encryption_key": "u3KzRH7wTNwXNSpzEG_18yVVjy75Elro",
+      "is_encrypted": false
+    },
+    {
+      "name": "BMI_Text",
+      "map_as": "BMI",
+      "type": "string|double",
+      "encryption_key": "PF22O_Hhwo4MSNruX6F6DkwT31FHj6OM",
+      "is_encrypted": false
+    },
+    {
+      "name": "Heart_Rate_Text",
+      "map_as": "HEART_RATE",
+      "type": "integer|short",
+      "encryption_key": "IYlGug1BmYY8QnCMZo5felH4-g7CYN70",
+      "is_encrypted": false
+    },
+    {
+      "name": "Systolic_BP_Text",
+      "map_as": "SYSTOLIC_BP",
+      "type": "string|short",
+      "encryption_key": "cvZw2_JNJe9Rz_0UDX-RVkVmQp_V8bGN",
+      "is_encrypted": false
+    },
+    {
+      "name": "Diastolic_BP",
+      "map_as": "DIASTOLIC_BP",
+      "type": "integer|short",
+      "encryption_key": "zoK6NKwvVdgRBdbfiiWQPsr9oF9aFTcU",
+      "is_encrypted": false
+    },
+    {
+      "name": "Glucose_Level_Text",
+      "map_as": "GLUCOSE_LEVEL",
+      "type": "string|float",
+      "encryption_key": "n3RMDqSDmqmMJBoRhm-wkDL8xGcVEfx1",
+      "is_encrypted": true
+    },
+    {
+      "name": "Risk_Score",
+      "map_as": "RISK_SCORE_TEXT",
+      "type": "double|string|target_format=%.3f",
+      "encryption_key": "847Rq5HNnRkf5D_dGOSHcNpIp449gllU",
+      "is_encrypted": false
+    },
+    {
+      "name": "Daily_Steps",
+      "map_as": "DAILY_STEPS",
+      "type": "long|integer",
+      "encryption_key": "UZmVp1Zxi9fYCis6VbdXnrlm22X57qrZ",
+      "is_encrypted": false
+    },
+    {
+      "name": "Insurance_Number",
+      "map_as": "INSURANCE_NUMBER_TEXT",
+      "type": "long|string",
+      "encryption_key": "s136w4A-nFjOi0x03pbYBY8ZQKyZey4-",
+      "is_encrypted": true
+    },
+    {
+      "name": "Birth_Date",
+      "map_as": "BIRTH_DATE",
+      "type": "string|date|source_format=%m/%d/%Y",
+      "encryption_key": "uDODJ6WQpP6UdJxFD9Pv2uS7zt-J5KWG",
+      "is_encrypted": true
+    },
+    {
+      "name": "Last_Checkup_Date",
+      "map_as": "LAST_CHECKUP_TEXT",
+      "type": "date|string|source_format=%Y-%m-%d|target_format=%d/%m/%Y",
+      "encryption_key": "79DO5NmtzngpvI138Cq_DYnGzKKKM_mV",
+      "is_encrypted": false
+    },
+    {
+      "name": "Appointment_Epoch_MS",
+      "map_as": "APPOINTMENT_AT",
+      "type": "long|timestamp|epoch_unit=milliseconds",
+      "encryption_key": "OsdAsO-Rlsmjup7QGUD57Nqzi8ZSVA23",
+      "is_encrypted": true
+    },
+    {
+      "name": "Discharge_Time",
+      "map_as": "DISCHARGE_EPOCH_SECONDS",
+      "type": "timestamp|long|source_format=%Y-%m-%d %H:%M:%S|epoch_unit=seconds",
+      "encryption_key": "RJfY0oPGGrc8WmQo_crxWyjATatIEBDv",
+      "is_encrypted": false
+    },
+    {
+      "name": "Record_Created",
+      "map_as": "RECORD_CREATED_AT",
+      "type": "string|timestamp|source_format=%d-%m-%Y %H:%M:%S",
+      "encryption_key": "C3HbU8-_KJszBYtOFvBH4qreYzoc-KOE",
+      "is_encrypted": true
+    },
+    {
+      "name": "Consent_Text",
+      "map_as": "HAS_CONSENT",
+      "type": "string|boolean|true_values=yes,y,1|false_values=no,n,0",
+      "encryption_key": "eDKiu1i2cvEsjXIX1LtN8BFo56ceTMn8",
+      "is_encrypted": false
+    },
+    {
+      "name": "Active_Text",
+      "map_as": "ACTIVE_FLAG",
+      "type": "boolean|integer",
+      "encryption_key": "l86A-juGF4ZV6Vrn2u9RF5UrvsCD3R7H",
+      "is_encrypted": false
+    },
+    {
+      "name": "Smoker_Code",
+      "map_as": "IS_SMOKER",
+      "type": "integer|boolean",
+      "encryption_key": "dlS2HyY7YDxwxIaetDPqsLq3KXclTNUc",
+      "is_encrypted": false
+    },
+    {
+      "name": "Emergency_Contact",
+      "map_as": "EMERGENCY_CONTACT_STATUS",
+      "type": "boolean|string|true_value=AVAILABLE|false_value=UNAVAILABLE",
+      "encryption_key": "1q8hHXho77_6DLtHFTJ3hl1Sors5Thr2",
+      "is_encrypted": false
+    },
+    {
+      "name": "Blood_Type",
+      "map_as": "BLOOD_TYPE",
+      "type": "string|string",
+      "encryption_key": "ZfRlCIDoM9LMPz6LlurTGRu88YWAXFND",
+      "is_encrypted": true
+    },
+    {
+      "name": "Diagnosis_Code",
+      "map_as": "DIAGNOSIS_CODE",
+      "type": "string|string",
+      "encryption_key": "UIhjyYeI5eb9rlCGSjgxpxiZkpHfu0ql",
+      "is_encrypted": true
+    }
+  ]
+}

@@ -1,0 +1,134 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://github.com/egulay/kebab_storm/scenario/schema/kebab_storm_scenario.schema.json",
+  "title": "Kebab Storm ETL Scenario",
+  "description": "Structural contract for Kebab Storm scenario files.",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "entity_name",
+    "import_save_location",
+    "report_save_location",
+    "temp_save_location",
+    "import_save_type",
+    "report_save_type",
+    "import_mode",
+    "id_field",
+    "delimiter",
+    "hard_delete_condition_in_years",
+    "enforce_data_model",
+    "is_apply_year_to_save_location",
+    "fields"
+  ],
+  "properties": {
+    "entity_name": {
+      "$ref": "#/$defs/nonBlankString"
+    },
+    "import_save_location": {
+      "$ref": "#/$defs/nonBlankString"
+    },
+    "report_save_location": {
+      "$ref": "#/$defs/nonBlankString"
+    },
+    "temp_save_location": {
+      "$ref": "#/$defs/nonBlankString"
+    },
+    "import_save_type": {
+      "$ref": "#/$defs/saveType"
+    },
+    "report_save_type": {
+      "$ref": "#/$defs/saveType"
+    },
+    "import_mode": {
+      "enum": [
+        "append",
+        "overwrite",
+        "ignore",
+        "errorifexists"
+      ]
+    },
+    "id_field": {
+      "$ref": "#/$defs/nonBlankString"
+    },
+    "delimiter": {
+      "type": "string",
+      "minLength": 1
+    },
+    "hard_delete_condition_in_years": {
+      "type": "integer",
+      "minimum": 0
+    },
+    "enforce_data_model": {
+      "type": "boolean"
+    },
+    "is_apply_year_to_save_location": {
+      "type": "boolean"
+    },
+    "fields": {
+      "type": "array",
+      "minItems": 1,
+      "items": {
+        "$ref": "#/$defs/field"
+      }
+    }
+  },
+  "$defs": {
+    "nonBlankString": {
+      "type": "string",
+      "pattern": "\\S"
+    },
+    "saveType": {
+      "type": "string",
+      "pattern": "^(parquet|table\\|[^|\\s]+)$"
+    },
+    "field": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "name",
+        "map_as",
+        "type",
+        "encryption_key",
+        "is_encrypted"
+      ],
+      "properties": {
+        "name": {
+          "$ref": "#/$defs/nonBlankString"
+        },
+        "map_as": {
+          "$ref": "#/$defs/nonBlankString"
+        },
+        "type": {
+          "$ref": "#/$defs/nonBlankString"
+        },
+        "encryption_key": {
+          "type": "string"
+        },
+        "is_encrypted": {
+          "type": "boolean"
+        }
+      },
+      "allOf": [
+        {
+          "if": {
+            "properties": {
+              "is_encrypted": {
+                "const": true
+              }
+            },
+            "required": [
+              "is_encrypted"
+            ]
+          },
+          "then": {
+            "properties": {
+              "encryption_key": {
+                "minLength": 16
+              }
+            }
+          }
+        }
+      ]
+    }
+  }
+}

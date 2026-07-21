@@ -1,29 +1,67 @@
-import asyncio
-import sys
+import os
+from collections.abc import Mapping
+from pathlib import Path
 
 import confuse
-import os
 import yaml
 
-_THIS_FOLDER = os.path.dirname(os.path.abspath(__file__))
-
-if sys.platform == 'win32':
-    asyncio.set_event_loop_policy(asyncio.WindowsSelectorEventLoopPolicy())
-
+_THIS_FOLDER = Path(__file__).resolve().parent
+_SUPPORTED_ENVIRONMENTS = frozenset({'local', 'dev', 'prod'})
+_ENVIRONMENT_VARIABLE = 'KEBAB_STORM_ENV'
+_CONFIG_OVERRIDES = {
+    'KEBAB_STORM_SPARK_MASTER': 'spark_master',
+    'KEBAB_STORM_LOGGING_LOCATION': 'kebab_storm_logging_location',
+    'KEBAB_STORM_DATA_LOCATION': 'default_data_location',
+}
 
 class Settings:
-    def __init__(self):
-        with open(os.path.join(_THIS_FOLDER, 'global.yml'), 'r') as _global_config_yml:
-            _global_config = yaml.safe_load(_global_config_yml)
-            self.active_profile = _global_config['default_environment']
+    def __init__(self, environment=None):
+        self.active_profile = self._select_environment(environment)
+        default_config = self._read_config(_THIS_FOLDER / 'default.yml')
+        profile_config = self._read_config(_THIS_FOLDER / self.active_profile / 'env.yml')
+        self.active_config = confuse.Configuration('KebabStorm', __name__, read=False)
+        self.active_config.set(self._merge(default_config, profile_config))
 
-            self.active_config = confuse.LazyConfig('KebabStorm', __name__)
-            self.active_config.set_file(os.path.join(_THIS_FOLDER, _global_config['default_environment'], 'env.yml'))
+        environment_overrides = {
+            config_key: os.environ[environment_key]
+            for environment_key, config_key in _CONFIG_OVERRIDES.items()
+            if os.environ.get(environment_key)
+        }
+        if environment_overrides:
+            self.active_config.set(environment_overrides)
 
-            self.spark_config = [[k, v] for k, v in self.active_config['spark_config'].get().items()]
-            self.spark_master = self.active_config['spark_master'].get()
-            self.logging_location = self.active_config['kebab_storm_logging_location'].get()
-            self.default_data_location = self.active_config['default_data_location'].get()
+        self.spark_config = [[key, value] for key, value in self.active_config['spark_config'].get().items()]
+        self.spark_master = self.active_config['spark_master'].get(str)
+        self.enable_hive_support = self.active_config['enable_hive_support'].get(bool)
+        self.logging_location = self.active_config['kebab_storm_logging_location'].get(str)
+        self.default_data_location = self.active_config['default_data_location'].get(str)
+        self.banner = (_THIS_FOLDER / 'banner.txt').read_text(encoding='utf-8')
 
-            with open(os.path.join(_THIS_FOLDER, 'banner.txt'), 'r') as _banner:
-                self.banner = _banner.read()
+    @staticmethod
+    def _select_environment(environment):
+        active_profile = str(environment or os.getenv(_ENVIRONMENT_VARIABLE, 'local')).strip().lower()
+        if active_profile not in _SUPPORTED_ENVIRONMENTS:
+            supported = ', '.join(sorted(_SUPPORTED_ENVIRONMENTS))
+            raise ValueError(
+                f'Unsupported {_ENVIRONMENT_VARIABLE} value: {active_profile!r}. '
+                f'Expected one of: {supported}'
+            )
+        return active_profile
+
+    @staticmethod
+    def _read_config(path):
+        with path.open(encoding='utf-8') as config_file:
+            config = yaml.safe_load(config_file)
+        if not isinstance(config, Mapping):
+            raise ValueError(f'Configuration file must contain a YAML mapping: {path}')
+        return config
+
+    @classmethod
+    def _merge(cls, base, override):
+        merged = dict(base)
+        for key, value in override.items():
+            if isinstance(merged.get(key), Mapping) and isinstance(value, Mapping):
+                merged[key] = cls._merge(merged[key], value)
+            else:
+                merged[key] = value
+        return merged

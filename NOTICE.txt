@@ -1,0 +1,14 @@
+Kebab Storm
+Copyright 2020-2026 Emre Gulay
+
+The current version of this software is licensed under the Elastic License 2.0.
+See LICENSE.txt for the complete terms.
+
+Copies and versions of Kebab Storm that were previously made available under
+the MIT License remain available under the license terms that accompanied those
+copies. The Elastic License 2.0 applies to the current repository version and
+future versions unless a later version states otherwise.
+
+Kebab Storm is an independent project. Names and trademarks belonging to
+Apache Software Foundation, Cloudera, HashiCorp, Broadcom, and other third
+parties remain the property of their respective owners.

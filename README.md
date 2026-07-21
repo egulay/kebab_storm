@@ -1,6 +1,112 @@
 # Kebab Storm
 ## Introduction
-A Spark driver for to demonstrate how to apply cryptography (with AES) on UDF level with data quality checks and transformations based on ETL scenarios in JSON format. Additionally, the solution has both row based soft and hard delete features.
+
+Kebab Storm is a handcrafted Apache Spark project designed to demonstrate how sensitive data can be refined,
+validated, transformed, selectively encrypted, and stored in a Hadoop-oriented data platform. Its central idea is to
+keep configured fields encrypted at rest as binary values so that directly inspecting the underlying Parquet files or
+Hadoop storage does not expose readable personal or commercially sensitive information—even to administrators who
+have access to the storage layer but do not have access to the encryption keys and authorized application path.
+
+The same protected data can still be useful. Spark jobs decrypt the required fields on the fly when an authorized
+reader prints imported records or generates an aggregated report. This demonstrates a separation between storage and
+data use: the persisted dataset remains unreadable at the field level, while reporting logic can decrypt only during
+processing and produce meaningful totals, groupings, and other analytics. Anyone who can access the application keys
+or the decryption runtime can, of course, recover the protected values; this example does not claim to protect data
+from an administrator who also controls those assets.
+
+Processing behavior is described by JSON scenarios rather than hard-coded for one dataset. A scenario defines source
+and mapped field names, type conversions, encryption choices and keys, storage locations, partitioning, schema
+enforcement, and retention. The project also demonstrates data-quality handling, encrypted and decrypted reads,
+report generation with on-the-fly decryption, and row-level soft and hard deletion governed by a configured retention
+period.
+
+**This repository is a technical reference implementation, not a turnkey production security product.** It can form
+part of a production service when the surrounding platform supplies secure identity, secret management, authorization,
+auditing, monitoring, recovery, and restricted access to the Spark runtime. Those controls are deployment
+responsibilities and are intentionally outside this project.
+
+### Service Deployment Architecture
+
+Kebab Storm can run as a controlled Spark service in a Hadoop or Cloudera environment. Apache Airflow, Apache NiFi,
+UC4, or another enterprise scheduler starts an executor under a dedicated operating-system service account. That
+identity retrieves the scenario from HashiCorp Vault over HTTPS, runs the requested import or report, and accesses
+only the storage paths and secrets assigned to it.
+
+Security integration and task scheduling are deliberately kept outside the Kebab Storm source code. The operating
+system and deployment platform own service identity, certificates, tokens, Vault authentication, process permissions,
+and Spark submission. The external orchestrator owns calendars, dependencies, and retries. Kebab Storm receives a
+scenario location and execution arguments, then performs only the requested data operation. This separation keeps the
+application small, platform-neutral, and independent of a particular secret manager or scheduling product; it is an
+architectural choice rather than missing application functionality.
+
+```mermaid
+flowchart LR
+    S["Airflow, NiFi, UC4, or another scheduler"] --> O["OS service account"]
+    O --> K["Kebab Storm Spark job"]
+    K -->|"Protected file or HTTPS request"| P["OS security layer or Vault Agent"]
+    P -->|"OS-managed identity"| V["HashiCorp Vault"]
+    V -->|"Protected secret response"| P
+    P -->|"Raw scenario JSON"| K
+    K -->|"Encrypted field values"| H["Hadoop or Cloudera storage"]
+    H -->|"Encrypted data"| K
+    K -->|"On-the-fly decryption and aggregation"| R["Authorized report output"]
+    A["Storage administrator"] -->|"Direct storage inspection"| H
+```
+
+In this model, users or administrators with storage-layer access can inspect files and partitions but cannot read the
+encrypted fields. The Spark service decrypts protected values only while executing an authorized operation. Access to
+the service account, Vault identity, Spark driver and executor processes, Spark UI, event logs, and generated report
+locations must be restricted at the operating-system and platform level. An administrator who controls that trusted
+runtime is outside this protection boundary because the runtime must receive the keys to perform decryption.
+
+#### Vault Scenario Retrieval
+
+All scenario consumers already use `load_scenario()` in [`util/scenario_util.py`](util/scenario_util.py), so Vault
+integration is isolated to that function. The remaining ETL and reporting code does not need to know whether a
+scenario came from a local file, an HTTPS service, or Vault. Retrieved scenarios still pass through the same JSON
+Schema and semantic validation before execution.
+
+The selected architecture uses an OS-managed Vault Agent or internal secret adapter, and the current HTTPS
+implementation expects that component to return the scenario JSON directly. No Python change is required when it:
+
+- Authenticates to Vault using the machine or service identity.
+- Renews its short-lived credentials outside the Spark application.
+- Exposes the authorized secret through a protected local HTTPS endpoint or renders it as a protected file.
+- Returns the scenario itself rather than the standard Vault response envelope.
+
+Vault authentication is intentionally not implemented inside Kebab Storm. Tokens and private keys are not application
+arguments, scenario properties, or scheduler parameters; the OS security layer owns them. A future direct-Vault mode
+would require changing only the URL branch of `load_scenario()` to authenticate and unwrap the Vault response, but
+that is not required for this architecture and would couple the application to Vault.
+
+After retrieval, the current implementation supplies the scenario to Spark encryption UDFs. Under this deployment
+model, the Spark runtime—including its UI and event logs—is part of the trusted service boundary and must be accessible
+only to authorized operators. If Spark administrators must also be prevented from accessing keys, the implementation
+would require a different key-handling design rather than placing encryption keys directly in the scenario.
+
+#### Task Scheduling and Orchestration
+
+Kebab Storm deliberately contains no internal scheduler. Apache Airflow, Apache NiFi, UC4, or a similar orchestration
+platform can execute the existing command-line modules through `spark-submit` or the environment's approved Spark
+submission mechanism. A typical scheduled workflow is:
+
+1. Confirm that the source data is available and complete.
+2. Run `etl.executor.import` with the secured scenario URL, input location, and logical processing date.
+3. Run the required reporting module after a successful import.
+4. Publish or transfer only the approved report output.
+5. Run `etl.executor.hard_delete` on a separate retention schedule.
+6. Record the result and notify operators when a task fails.
+
+Soft deletion is normally triggered by an approved deletion request and invokes `etl.executor.soft_delete` with the
+authorized record identifiers. Hard deletion is a periodic maintenance task that applies the retention period from the
+same scenario. Import and report dates should come from the scheduler's logical execution date so retries process the
+same partition instead of automatically switching to the retry date.
+
+The orchestrator supplies task dependencies, calendars, retries, concurrency limits, service-account selection,
+credential renewal, notifications, and operational history. Kebab Storm remains responsible for scenario validation,
+data conversion, encryption, storage, retention execution, and report generation. No Kebab Storm code change is
+required specifically for Airflow, NiFi, or UC4 integration.
+
 ## Setup (Spark & Hadoop on localhost)
 ### Windows
 Please use this [link](https://phoenixnap.com/kb/install-spark-on-windows-10).
@@ -8,31 +114,44 @@ Please use this [link](https://phoenixnap.com/kb/install-spark-on-windows-10).
 Please use this [link](https://sparkbyexamples.com/spark/install-apache-spark-on-mac/).
 ## External Dependencies (requirements.txt)
 ```sh
-certifi==2022.9.24
-charset-normalizer==3.0.0
-confuse==2.0.0
-dateutils==0.6.12
-decorator==5.1.1
-docopt==0.6.2
-idna==3.4
-numpy==1.23.4
-pipreqs==0.4.11
-protobuf==4.21.9
-py4j==0.10.9.7
-pycryptodome==3.15.0
-pyspark==3.3.1
-python-dateutil==2.8.2
-pytz==2022.6
-PyYAML==6.0
-requests==2.28.1
-six==1.16.0
-urllib3==1.26.12
-validators==0.20.0
-yarg==0.1.9
+pyspark==4.1.1
+confuse==2.2.0
+jsonschema==4.26.0
+PyYAML==6.0.3
+typing-extensions==4.16.0
+validators==0.35.0
+python-dateutil==2.9.0.post0
+pycryptodome==3.23.0
 ```
+
+The current runtime baseline is Python 3.10 or newer and Java 17 or newer. The local PySpark version must match the
+target Spark cluster version.
 ## Driver Settings
 All necessary Spark and solution specific settings are located in [/conf](https://github.com/egulay/kebab_storm/tree/master/conf) directory per environment.
-For to set the default environment please refer [global.yml](https://github.com/egulay/kebab_storm/blob/master/conf/global.yml)
+
+Select the runtime environment with `KEBAB_STORM_ENV`. It accepts `local`, `dev`, or `prod` and safely defaults to
+`local` when it is not set:
+
+```sh
+KEBAB_STORM_ENV=local python -m etl.executor.import ...
+```
+
+Shared Spark settings are defined in [`conf/default.yml`](conf/default.yml), then recursively merged with the selected
+[`conf/local/env.yml`](conf/local/env.yml), `conf/dev/env.yml`, or `conf/prod/env.yml`. Runtime values have this
+precedence: shared YAML, environment YAML, environment-variable overrides, then command-line arguments.
+
+The following optional environment variables avoid editing YAML during deployment:
+
+```text
+KEBAB_STORM_SPARK_MASTER
+KEBAB_STORM_LOGGING_LOCATION
+KEBAB_STORM_DATA_LOCATION
+```
+
+Each command creates Spark explicitly after parsing its arguments and always stops the session when the job finishes.
+Hive support is disabled locally and enabled for the dev/prod profiles. Deployment-time properties such as driver
+memory and deploy mode should be supplied through `spark-submit`; environment YAML is reserved for settings that the
+application can apply while constructing its Spark session.
 
 ## Features
 Executor scripts are located in [/etl/executor/](https://github.com/egulay/kebab_storm/tree/master/etl/executor) directory with the features below:
@@ -45,6 +164,44 @@ Executor scripts are located in [/etl/executor/](https://github.com/egulay/kebab
 * [Hard Delete](https://github.com/egulay/kebab_storm/blob/master/etl/executor/hard_delete.py)
 ### Scenario
 An example JSON based scenario located in [/scenario](https://github.com/egulay/kebab_storm/blob/master/scenario/sales_records_scenario.json) directory.
+
+Every scenario is structurally validated against the Draft 2020-12 schema in
+[`scenario/schema/kebab_storm_scenario.schema.json`](scenario/schema/kebab_storm_scenario.schema.json). Validation
+runs when the scenario is loaded, before Spark reads an input file. Structural validation is followed by semantic
+checks for conversion definitions, duplicate mappings, reserved fields, ID-field membership, and encryption-key
+rules. A structural error includes its JSON path, for example `$.fields[0].is_encrypted`.
+
+Field conversions use a source-to-target pipe definition:
+
+```text
+source_type|target_type|option=value|option=value
+```
+
+Supported types are `string`, `boolean`, `byte`, `short`, `integer`, `long`, `float`, `double`,
+`decimal(precision,scale)`, `date`, and `timestamp`. The aliases `bool`, `tinyint`, `smallint`, `int`, and `bigint`
+are also accepted.
+
+Examples:
+
+```json
+"type": "string|integer"
+"type": "integer|string"
+"type": "string|decimal(12,2)"
+"type": "string|timestamp|source_format=%m/%d/%Y %H:%M:%S"
+"type": "timestamp|string|source_format=%Y-%m-%d|target_format=%d/%m/%Y"
+"type": "long|timestamp|epoch_unit=milliseconds"
+"type": "timestamp|long|source_format=%Y-%m-%d %H:%M:%S|epoch_unit=seconds"
+"type": "string|boolean|true_values=yes,y,1|false_values=no,n,0"
+"type": "boolean|string|true_value=YES|false_value=NO"
+```
+
+Numeric/timestamp conversions require `epoch_unit=seconds`, `milliseconds`, or `microseconds`. Numeric-to-boolean
+conversion accepts only `0` and `1`. Invalid or overflowing values are converted to null and summarized in the logs.
+CSV cells are initially read as strings so the scenario remains the schema authority.
+
+For flexible and concise scenarios, the string source may be omitted. Shorthand definitions such as `int`, `double`,
+and `timestamp|%m/%d/%Y|%Y-%m-%d` are interpreted as string-to-target conversions.
+
 ```json
 {
   "entity_name": "Sales",
@@ -63,104 +220,179 @@ An example JSON based scenario located in [/scenario](https://github.com/egulay/
     {
       "name": "Region",
       "map_as": "REGION",
-      "type": "string",
+      "type": "string|string",
       "encryption_key": "6tzm3NpUfDgnz7SBvLXKJVFvHGnp7q",
       "is_encrypted": true
     },
     {
       "name": "Country",
       "map_as": "COUNTRY",
-      "type": "string",
+      "type": "string|string",
       "encryption_key": "Y8RCFHrTv5GbPCEA4zp65M5BYfWfqk",
       "is_encrypted": true
     },
     {
       "name": "Item_Type",
       "map_as": "ITEMTYPE",
-      "type": "string",
+      "type": "string|string",
       "encryption_key": "M6NgJPgfJ3xzkjsP5eMHzUJpjXSspE",
       "is_encrypted": true
     },
     {
       "name": "Sales_Channel",
       "map_as": "SALESCHANNEL",
-      "type": "string",
+      "type": "string|string",
       "encryption_key": "CEY64MuGcnUyXpWtyA885thG9NPPks",
       "is_encrypted": false
     },
     {
       "name": "Order_Priority",
       "map_as": "ORDERPRIORITY",
-      "type": "string",
+      "type": "string|string",
       "encryption_key": "GLF75Jet46dNnW2eyLD5AXs4JGLTHc",
       "is_encrypted": false
     },
     {
       "name": "Order_Date",
       "map_as": "ORDERDATE",
-      "type": "timestamp|%m/%d/%Y|%Y-%m-%d",
+      "type": "string|timestamp|source_format=%m/%d/%Y",
       "encryption_key": "PYHW7Nqtu7SNUcvXWZgadKqH2EQ7tGj8",
       "is_encrypted": true
     },
     {
       "name": "Order_ID",
       "map_as": "ORDERID",
-      "type": "int",
+      "type": "string|integer",
       "encryption_key": "n8ZddZeeLfA2qmpRMkXZ7unmdWqUMLmx",
       "is_encrypted": true
     },
     {
       "name": "Ship_Date",
       "map_as": "SHIPDATE",
-      "type": "timestamp|%m/%d/%Y|%Y-%m-%d",
+      "type": "string|timestamp|source_format=%m/%d/%Y",
       "encryption_key": "nLp8pXzWHpbKyAtn45HN7FGrdRM9jTf7",
       "is_encrypted": true
     },
     {
       "name": "Units_Sold",
       "map_as": "UNITSOLD",
-      "type": "int",
+      "type": "string|integer",
       "encryption_key": "CGvFGagy3qDham7W8gwjPzVaBtcf5EPc",
       "is_encrypted": true
     },
     {
       "name": "Unit_Price",
       "map_as": "UNITPRICE",
-      "type": "double",
+      "type": "string|double",
       "encryption_key": "fUGjtwUwdYdzR2wrV7a5nDY4PptuRZB8",
       "is_encrypted": false
     },
     {
       "name": "Unit_Cost",
       "map_as": "UNITCOST",
-      "type": "double",
+      "type": "string|double",
       "encryption_key": "egR6r5UKNj4URcM4Af2YMYC9QXyzw2dP",
       "is_encrypted": true
     },
     {
       "name": "Total_Revenue",
       "map_as": "TOTALREVENUE",
-      "type": "double",
+      "type": "string|double",
       "encryption_key": "JpM2qSZH2u5JmCaqY7WnMmjN4vrKHtff",
       "is_encrypted": true
     },
     {
       "name": "Total_Cost",
       "map_as": "TOTALCOST",
-      "type": "double",
+      "type": "string|double",
       "encryption_key": "W57xBz8DgZte8CpPpHMu2NN2uEyGzAfd",
       "is_encrypted": true
     },
     {
       "name": "Total_Profit",
       "map_as": "TOTALPROFIT",
-      "type": "double",
+      "type": "string|double",
       "encryption_key": "3t2NqvPThFZRhQyguqPYcruREKCjqYfJ",
       "is_encrypted": true
     }
   ]
 }
 ```
+
+### Sales Demo Scripts
+
+The [`demo/sales`](demo/sales) directory contains an end-to-end sales demonstration. Run the scripts from the project
+root in numeric order:
+
+```sh
+./demo/sales/01_import.sh
+./demo/sales/02_print_imported_encrypted.sh
+./demo/sales/03_print_imported_decrypted.sh
+./demo/sales/04_create_report.sh
+./demo/sales/05_print_report.sh
+```
+
+The flow imports the corrupted sales sample, displays the encrypted-at-rest values, decrypts them while reading,
+creates the simple sales aggregation with on-the-fly decryption, and prints the generated report.
+
+Every script automatically sources [`demo/sales/demo_env.sh`](demo/sales/demo_env.sh). It locates the project root and
+exports the Java, Python, PySpark, Spark master, timezone, configuration profile, data location, logging location,
+scenario, input file, import date, report date, and soft-delete settings required by the demo. Generated Parquet data
+and logs are written to `demo/output` and `demo/logs`.
+
+Defaults can be overridden for an individual run without editing a script:
+
+```sh
+DEMO_IMPORT_DATE=2026-08-01 ./demo/sales/01_import.sh
+DEMO_IMPORT_DATE=2026-08-01 ./demo/sales/04_create_report.sh
+```
+
+`05_print_report.sh` uses the current date because reports are partitioned by their creation date. Override
+`DEMO_REPORT_DATE` when printing a report created on another day.
+
+#### Demonstrating Soft and Hard Delete Retention
+
+The sales scenario sets `hard_delete_condition_in_years` to `3`. A normal soft delete records today's date, so an
+immediately following hard delete correctly keeps the record: it has not completed its three-year retention period.
+To demonstrate the complete lifecycle without waiting three years, temporarily backdate the soft-delete date in two
+places. These changes are for the retention demo only and must be restored afterward.
+
+In [`util/etl_util.py`](util/etl_util.py), uncomment the retention-demo `relativedelta` import and the backdated block
+inside `generic_soft_delete()`. Comment the active three-line block that assigns, logs, and returns today's
+`soft_deleted` value.
+
+In `soft_delete()` in [`etl/importer.py`](etl/importer.py), uncomment the retention-demo block in the Parquet branch
+and comment the active `today = datetime.today()...` line immediately below it. The sales scenario uses this branch.
+For a table-based scenario, make the same switch in the table-output branch instead. Only the branch selected by
+`import_save_type` should be changed. Without this second switch, the backdated row exists in temporary data but its
+source year partition is not selected for overwrite, so the soft delete is not persisted.
+
+Hard delete also scans year-based import locations only through the retention cutoff year. Therefore, import this demo
+with a date at least three years old. For example, when running on `2026-07-21`, use `2023-07-21`:
+
+```sh
+export DEMO_IMPORT_DATE=2023-07-21
+source demo/sales/demo_env.sh
+
+./demo/sales/01_import.sh
+
+"${DEMO_PYTHON}" -m etl.executor.soft_delete \
+  --scenario "${DEMO_SCENARIO}" \
+  --id_values 897751939
+
+"${DEMO_PYTHON}" -m etl.executor.print_soft_deleted \
+  --scenario "${DEMO_SCENARIO}" \
+  --crypto-action decrypted
+
+"${DEMO_PYTHON}" -m etl.executor.hard_delete \
+  --scenario "${DEMO_SCENARIO}"
+```
+
+The soft-deleted print confirms that the record was marked and decrypted on read. The hard-delete execution then
+physically removes records whose `SOFT_DELETED` value is on or before the three-year cutoff. After the demonstration,
+re-comment the retention-demo import and backdating blocks, then restore the active current-date lines. Otherwise,
+future soft deletes will be immediately eligible for hard deletion.
+
 ### Execution
 #### Help
 Each executor file has help text similar to below.
@@ -417,11 +649,21 @@ only showing top 20 rows
 Total Count: 185
 ```
 ### License
-The MIT License (MIT)
-Copyright © 2020
 
-Permission is hereby granted, free of charge, to any person obtaining a copy of this software and associated documentation files (the “Software”), to deal in the Software without restriction, including without limitation the rights to use, copy, modify, merge, publish, distribute, sublicense, and/or sell copies of the Software, and to permit persons to whom the Software is furnished to do so, subject to the following conditions:
+Copyright 2020-2026 Emre Gulay.
 
-The above copyright notice and this permission notice shall be included in all copies or substantial portions of the Software.
+The current version of Kebab Storm is source-available under the
+[Elastic License 2.0](LICENSE.txt). It may be downloaded, used, modified, and redistributed subject to that license.
+Internal personal, educational, and commercial use is permitted. The software may not be offered to third parties as
+a hosted or managed service that exposes a substantial set of its features, and licensing or copyright notices may
+not be removed or obscured.
 
-THE SOFTWARE IS PROVIDED “AS IS”, WITHOUT WARRANTY OF ANY KIND, EXPRESS OR IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY, FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM, OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
+This summary is provided for convenience and does not replace the complete terms in [`LICENSE.txt`](LICENSE.txt).
+See [`NOTICE.txt`](NOTICE.txt) for copyright and license-transition information. Copies or versions previously
+received under the MIT License remain governed by the MIT terms supplied with those copies; the license change does
+not revoke rights already granted for them.
+
+#### Commercial Licensing
+
+Organizations that want to provide Kebab Storm itself as a hosted or managed service, or that require terms different
+from the Elastic License 2.0, may request a separate commercial license from the copyright holder.

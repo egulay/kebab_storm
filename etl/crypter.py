@@ -1,23 +1,20 @@
 import json
-from datetime import datetime
+import logging
 from functools import reduce
 
 from pyspark.sql import DataFrame
 from pyspark.sql import functions as func
 from pyspark.sql.types import BinaryType
 
-from conf import settings
 from util.crypto.crypto_action import CryptoAction
 from util.crypto.crypto_util import generic_encrypt_udf, generic_decrypt_udf
 from util.etl_util import generic_cast_map_as
-from util.logger import get_logger
 from util.scenario_util import load_scenario, find_encrypted_fields_map_as
 
-logger = get_logger(__name__, settings.logging_location,
-                    f'{datetime.today().strftime("%Y-%m-%d")}.log', settings.active_profile)
+logger = logging.getLogger(__name__)
 
 
-async def execute_crypto_action(source: DataFrame, scenario_json_path, action: CryptoAction) -> DataFrame:
+def execute_crypto_action(source: DataFrame, scenario_json_path, action: CryptoAction) -> DataFrame:
     scenario = load_scenario(scenario_json_path)
 
     columns_to_encrypt = find_encrypted_fields_map_as(scenario)

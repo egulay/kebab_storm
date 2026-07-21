@@ -1,5 +1,5 @@
-import os
-from typing import List, Optional
+from contextlib import contextmanager
+from collections.abc import Iterable
 
 from pyspark import SparkConf
 from pyspark.sql import SparkSession
@@ -7,45 +7,36 @@ from pyspark.sql import SparkSession
 from util.constants import STANDALONE
 
 
-class SparkProvider:
+def create_spark_session(
+        app_name: str,
+        master: str = STANDALONE,
+        conf: SparkConf | None = None,
+        packages: Iterable[str] | None = None,
+        python_files: Iterable[str] | None = None,
+        files: Iterable[str] | None = None,
+        enable_hive_support: bool = False) -> SparkSession:
 
-    def __init__(self,
-                 app_name: str,
-                 conf: Optional[SparkConf] = None,
-                 extra_dependencies: Optional[List[str]] = None,
-                 extra_files: Optional[List[str]] = None):
-        self.spark = self.set_up_spark(app_name, self.master, conf, extra_dependencies, extra_files)
+    spark_conf = conf or SparkConf()
+    if packages:
+        spark_conf.set('spark.jars.packages', ','.join(packages))
 
-    @property
-    def master(self) -> str:
-        return os.getenv('SPARK_MASTER', STANDALONE)
+    builder = SparkSession.builder.appName(app_name).master(master).config(conf=spark_conf)
+    if enable_hive_support:
+        builder = builder.enableHiveSupport()
+    spark = builder.getOrCreate()
 
-    @staticmethod
-    def setup_spark(app_name: str,
-                    master: str = STANDALONE,
-                    conf: SparkConf = None,
-                    extra_dependencies: List[str] = None,
-                    extra_files: List[str] = None) -> SparkSession:
-        conf = conf if conf else SparkConf()
+    for python_file in python_files or ():
+        spark.sparkContext.addPyFile(python_file)
+    for resource_file in files or ():
+        spark.sparkContext.addFile(resource_file)
+    return spark
 
-        if extra_dependencies:
-            spark_dependencies = ','.join(extra_dependencies)
-            conf.set('spark.jars.packages', spark_dependencies)
 
-        spark = SparkSession \
-            .builder \
-            .appName(app_name) \
-            .master(master) \
-            .config(conf=conf) \
-            .enableHiveSupport() \
-            .getOrCreate()
+@contextmanager
+def managed_spark_session(*args, **kwargs):
 
-        extra_files = extra_files if extra_files else []
-        for extra_file in extra_files:
-            spark.sparkContext.addPyFile(extra_file)
-
-        return spark
-
-    @staticmethod
-    def shut_down_spark(spark):
+    spark = create_spark_session(*args, **kwargs)
+    try:
+        yield spark
+    finally:
         spark.stop()

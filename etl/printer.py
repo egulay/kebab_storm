@@ -1,3 +1,4 @@
+import logging
 from datetime import datetime
 
 from pyspark.sql import DataFrame, SparkSession
@@ -8,16 +9,14 @@ from etl.refiner import validate_and_refine
 from util.constants import DAY_PARTITION_FIELD_NAME, SOFT_DELETED_FIELD_NAME
 from util.crypto.crypto_action import CryptoAction
 from util.etl_util import get_day_partition_name_and_year
-from util.logger import get_logger
 from util.parquet_util import read_spark_parquet, hdfs_get_folder_names
-from util.scenario_util import get_scenario_defaults, get_missing_fields
+from util.scenario_util import get_scenario_defaults, get_missing_fields, get_unexpected_fields
 from util.type_checkers import is_not_blank
 
-logger = get_logger(__name__, settings.logging_location,
-                    f'{datetime.today().strftime("%Y-%m-%d")}.log', settings.active_profile)
+logger = logging.getLogger(__name__)
 
 
-async def print_report_data(spark_session: SparkSession, scenario_json_path: str, report_name: str, day):
+def print_report_data(spark_session: SparkSession, scenario_json_path: str, report_name: str, day):
     name, import_save_location, temp_save_location, import_save_type, import_mode, id_field_name, delimiter, \
         hard_delete_in_years, enforce_data_model, is_apply_year_to_save_location, report_save_location, \
         report_save_type = get_scenario_defaults(scenario_json_path)
@@ -33,15 +32,14 @@ async def print_report_data(spark_session: SparkSession, scenario_json_path: str
     logger.info(f'Identified parquet path: {parquet_path}')
     data = read_spark_parquet(spark_session, parquet_path)
 
-    if data.rdd.isEmpty():
+    if data.isEmpty():
         logger.error('No data found')
         return
 
-    await print_data_frame_with_schema(data)
+    print_data_frame_with_schema(data)
 
 
-async def print_imported_data(spark_session: SparkSession, scenario_json_path: str, crypto_action: str,
-                              day):
+def print_imported_data(spark_session: SparkSession, scenario_json_path: str, crypto_action: str, day):
     name, import_save_location, temp_save_location, import_save_type, import_mode, id_field_name, delimiter, \
         hard_delete_in_years, enforce_data_model, is_apply_year_to_save_location, report_save_location, \
         report_save_type = get_scenario_defaults(scenario_json_path)
@@ -56,16 +54,16 @@ async def print_imported_data(spark_session: SparkSession, scenario_json_path: s
 
     data = read_spark_parquet(spark_session, parquet_path)
 
-    if data.rdd.isEmpty():
+    if data.isEmpty():
         logger.error('No data found')
         return
 
-    await print_data_frame_with_schema(
-        data if crypto_action == 'encrypted' else await execute_crypto_action(data, scenario_json_path,
-                                                                              CryptoAction.decrypt))
+    print_data_frame_with_schema(
+        data if crypto_action == 'encrypted' else execute_crypto_action(data, scenario_json_path,
+                                                                        CryptoAction.decrypt))
 
 
-async def print_soft_deleted(spark_session: SparkSession, scenario_json_path: str, crypto_action: str):
+def print_soft_deleted(spark_session: SparkSession, scenario_json_path: str, crypto_action: str):
     name, import_save_location, temp_save_location, import_save_type, import_mode, id_field_name, delimiter, \
         hard_delete_in_years, enforce_data_model, is_apply_year_to_save_location, report_save_location, \
         report_save_type = get_scenario_defaults(scenario_json_path)
@@ -77,36 +75,41 @@ async def print_soft_deleted(spark_session: SparkSession, scenario_json_path: st
         data = read_spark_parquet(spark_session, import_save_location)
     else:
         for directory in hdfs_get_folder_names(spark_session, import_save_location):
-            if data is not None and not data.rdd.isEmpty():
+            if data is not None and not data.isEmpty():
                 u_data = read_spark_parquet(spark_session, f'{settings.default_data_location}/{directory}')
-                if not u_data.rdd.isEmpty():
+                if not u_data.isEmpty():
                     data = data.union(u_data)
             else:
                 data = read_spark_parquet(spark_session, f'{settings.default_data_location}/{directory}')
 
-    if not data.rdd.isEmpty():
+    if not data.isEmpty():
         data = data.where(f'{SOFT_DELETED_FIELD_NAME} IS NOT NULL')
-        if data.rdd.isEmpty():
+        if data.isEmpty():
             logger.error('No data found')
             return
-        await print_data_frame_with_schema(
-            data if crypto_action == 'encrypted' else await execute_crypto_action(data, scenario_json_path,
-                                                                                  CryptoAction.decrypt))
+        print_data_frame_with_schema(
+            data if crypto_action == 'encrypted' else execute_crypto_action(data, scenario_json_path,
+                                                                            CryptoAction.decrypt))
         return
 
     logger.error('No data found')
 
 
-async def print_data_frame_with_schema(source: DataFrame):
-    if not source.rdd.isEmpty():
+def print_data_frame_with_schema(source: DataFrame):
+    source.persist()
+    try:
+        total_count = source.count()
+        if not total_count:
+            logger.error('No data found')
+            return
         source.printSchema()
         source.show()
-        print(f'Total Count: {str(source.count())}')
-        return
-    logger.error('No data found')
+        print(f'Total Count: {total_count}')
+    finally:
+        source.unpersist()
 
 
-async def print_refined_data_with_schema(spark_session: SparkSession, scenario_json_path, source_file):
+def print_refined_data_with_schema(spark_session: SparkSession, scenario_json_path, source_file):
     name, import_save_location, temp_save_location, import_save_type, import_mode, id_field_name, delimiter, \
         hard_delete_in_years, enforce_data_model, is_apply_year_to_save_location, report_save_location, \
         report_save_type = get_scenario_defaults(scenario_json_path)
@@ -114,40 +117,45 @@ async def print_refined_data_with_schema(spark_session: SparkSession, scenario_j
     if is_not_blank(source_file) and source_file.endswith('.csv'):
         logger.info(f'Printing refined data with schema information for {name} entity defined in {scenario_json_path}')
         data = spark_session.read.option("delimiter", delimiter) \
-            .csv(source_file, inferSchema=True, header=True)
+            .csv(source_file, inferSchema=False, header=True)
 
-        if data.rdd.isEmpty():
+        if data.isEmpty():
             logger.error('No data found')
             return
 
         if enforce_data_model:
             missing_fields = get_missing_fields(scenario_json_path, data)
+            unexpected_fields = get_unexpected_fields(scenario_json_path, data)
             if missing_fields:
-                logger.error(f'Following field(s) are missing in the scenario file: '
+                logger.error(f'Following scenario field(s) are missing from the input file: '
                              f'{", ".join(map(str, missing_fields)).strip()}')
+                exit(1)
+            if unexpected_fields:
+                logger.error(f'Following input field(s) are not defined in the scenario: '
+                             f'{", ".join(map(str, unexpected_fields)).strip()}')
                 exit(1)
 
         logger.info(f'Data loaded from {source_file}')
-        result = await validate_and_refine(scenario_json_path, data, datetime.today().strftime('%Y%m%d'))
-        await print_data_frame_with_schema(result)
+        result = validate_and_refine(scenario_json_path, data, datetime.today().strftime('%Y%m%d'))
+        print_data_frame_with_schema(result)
         return
 
     logger.error('input data file must be csv')
     exit(1)
 
 
-async def print_sample_data_with_schema(spark_session: SparkSession, source_file, delimiter):
+def print_sample_data_with_schema(spark_session: SparkSession, source_file, delimiter):
     if is_not_blank(source_file) and source_file.endswith('.csv'):
         logger.info('Printing data with schema information')
         data = spark_session.read.option('delimiter', delimiter) \
             .csv(source_file, inferSchema=True, header=True)
         logger.info(f'Data loaded from {source_file}')
 
-        if data.rdd.isEmpty():
+        if data.isEmpty():
             logger.error('No data found')
             return
 
-        await print_data_frame_with_schema(data)
+        print_data_frame_with_schema(data)
         return
 
     logger.error('input data file must be csv')

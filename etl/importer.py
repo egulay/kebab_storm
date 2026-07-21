@@ -1,8 +1,7 @@
-import itertools
 import json
+import logging
 from datetime import datetime
 
-import numpy as np
 from dateutil.relativedelta import relativedelta
 from pyspark.sql import functions as func, SparkSession
 from pyspark.sql.types import BinaryType, TimestampType, StructType, StructField, StringType
@@ -15,20 +14,18 @@ from util.constants import DAY_PARTITION_FIELD_NAME, DATE_IMPORTED_FIELD_NAME, S
 from util.crypto.crypto_action import CryptoAction
 from util.crypto.crypto_util import generic_decrypt_udf, generic_encrypt_udf
 from util.etl_util import generic_cast_map_as, generic_soft_delete_udf, get_day_partition_name_and_year
-from util.logger import get_logger
 from util.parquet_save_mode import ParquetSaveMode
 from util.parquet_util import write_spark_parquet, write_hive_table, read_spark_parquet, \
     hdfs_delete, hdfs_get_folder_names, hdfs_get_folder_years_less_than, read_spark_parquets_by_dates, hdfs_path_exist
-from util.scenario_util import get_scenario_defaults, get_missing_fields, find_mapped_as_value, \
+from util.scenario_util import get_scenario_defaults, get_missing_fields, get_unexpected_fields, find_mapped_as_value, \
     load_scenario, find_field_is_encrypted
 
-logger = get_logger(__name__, settings.logging_location,
-                    f'{datetime.today().strftime("%Y-%m-%d")}.log', settings.active_profile)
+logger = logging.getLogger(__name__)
 
 
-async def get_reporting_data_between_dates(spark_session: SparkSession, scenario_json_path: str,
-                                           crypto_action: CryptoAction,
-                                           include_soft_deleted: bool, start_date, end_date):
+def get_reporting_data_between_dates(spark_session: SparkSession, scenario_json_path: str,
+                                     crypto_action: CryptoAction,
+                                     include_soft_deleted: bool, start_date, end_date):
     name, import_save_location, temp_save_location, import_save_type, import_mode, id_field_name, delimiter, \
     hard_delete_in_years, enforce_data_model, is_apply_year_to_save_location, report_save_location, \
     report_save_type = get_scenario_defaults(scenario_json_path)
@@ -45,11 +42,13 @@ async def get_reporting_data_between_dates(spark_session: SparkSession, scenario
         if year_start != year_end:
             locations = [f'{import_save_location}_{year}' for year in range(year_start, year_end + 1)
                          if hdfs_path_exist(spark_session, f'{import_save_location}_{year}')]
-            for location in locations:
-                if data is None or data.rdd.isEmpty():
-                    data = read_spark_parquet(spark_session, location)
-                else:
-                    data = data.union(read_spark_parquet(spark_session, location))
+            if not locations:
+                empty_data = spark_session.createDataFrame(
+                    [], StructType([StructField("no data", StringType(), True)]))
+                return empty_data, report_save_type, report_save_location, is_apply_year_to_save_location
+            data = read_spark_parquet(spark_session, locations[0])
+            for location in locations[1:]:
+                data = data.unionByName(read_spark_parquet(spark_session, location))
             data = data.withColumn(DATE_IMPORTED_FIELD_NAME, func.to_timestamp(DATE_IMPORTED_FIELD_NAME, "yyyyMMdd")) \
                 .filter(func.col(DATE_IMPORTED_FIELD_NAME).between(start_date, end_date))
         else:
@@ -58,21 +57,22 @@ async def get_reporting_data_between_dates(spark_session: SparkSession, scenario
     else:
         data = read_spark_parquets_by_dates(spark_session, start_date, end_date, import_save_location)
 
-    if data.rdd.isEmpty():
+    if data.isEmpty():
         logger.error('No data found')
-        return spark_session.createDataFrame([], StructType([StructField("no data", StringType(), True)]))
+        empty_data = spark_session.createDataFrame([], StructType([StructField("no data", StringType(), True)]))
+        return empty_data, report_save_type, report_save_location, is_apply_year_to_save_location
 
     if not include_soft_deleted:
         data = data.where(f'{SOFT_DELETED_FIELD_NAME} IS NULL')
 
-    return data if crypto_action == CryptoAction.encrypt else await \
+    return data if crypto_action == CryptoAction.encrypt else \
         execute_crypto_action(data, scenario_json_path, CryptoAction.decrypt), report_save_type, \
            report_save_location, is_apply_year_to_save_location
 
 
-async def get_reporting_data(spark_session: SparkSession, scenario_json_path: str,
-                             crypto_action: CryptoAction,
-                             include_soft_deleted: bool, day):
+def get_reporting_data(spark_session: SparkSession, scenario_json_path: str,
+                       crypto_action: CryptoAction,
+                       include_soft_deleted: bool, day):
     name, import_save_location, temp_save_location, import_save_type, import_mode, id_field_name, delimiter, \
     hard_delete_in_years, enforce_data_model, is_apply_year_to_save_location, report_save_location, \
     report_save_type = get_scenario_defaults(scenario_json_path)
@@ -90,19 +90,20 @@ async def get_reporting_data(spark_session: SparkSession, scenario_json_path: st
     spark_session.sparkContext.setJobDescription(f'Get reporting data for {name}')
     data = read_spark_parquet(spark_session, parquet_path)
 
-    if data.rdd.isEmpty():
+    if data.isEmpty():
         logger.error('No data found')
-        return spark_session.createDataFrame([], StructType([StructField("no data", StringType(), True)]))
+        empty_data = spark_session.createDataFrame([], StructType([StructField("no data", StringType(), True)]))
+        return empty_data, report_save_type, report_save_location, is_apply_year_to_save_location
 
     if not include_soft_deleted:
         data = data.where(f'{SOFT_DELETED_FIELD_NAME} IS NULL')
 
-    return data if crypto_action == CryptoAction.encrypt else await \
+    return data if crypto_action == CryptoAction.encrypt else \
         execute_crypto_action(data, scenario_json_path, CryptoAction.decrypt), report_save_type, \
            report_save_location, is_apply_year_to_save_location
 
 
-async def hard_delete(spark_session: SparkSession, scenario_json_path):
+def hard_delete(spark_session: SparkSession, scenario_json_path):
     name, import_save_location, temp_save_location, import_save_type, import_mode, id_field_name, delimiter, \
     hard_delete_in_years, enforce_data_model, is_apply_year_to_save_location, report_save_location, \
     report_save_type = get_scenario_defaults(scenario_json_path)
@@ -117,14 +118,14 @@ async def hard_delete(spark_session: SparkSession, scenario_json_path):
         all_data = read_spark_parquet(spark_session, import_save_location)
     else:
         for year in folder_years_less_than_x:
-            if all_data is not None and not all_data.rdd.isEmpty():
+            if all_data is not None and not all_data.isEmpty():
                 u_data = read_spark_parquet(spark_session, f'{import_save_location}_{year}')
-                if not u_data.rdd.isEmpty():
+                if not u_data.isEmpty():
                     all_data = all_data.union(u_data)
             else:
                 all_data = read_spark_parquet(spark_session, f'{import_save_location}_{year}')
 
-    if all_data is None or all_data.rdd.isEmpty():
+    if all_data is None or all_data.isEmpty():
         logger.error(f'No data found')
         exit(1)
 
@@ -136,7 +137,7 @@ async def hard_delete(spark_session: SparkSession, scenario_json_path):
         func.col(SOFT_DELETED_FIELD_NAME) <= func.unix_timestamp(
             func.lit(x_years_ago.strftime('%Y-%m-%d %H:%M:%S'))).cast(TimestampType()))
 
-    if soft_deleted_data.rdd.isEmpty():
+    if soft_deleted_data.isEmpty():
         logger.warning(f'No data found for earlier than {x_years_ago.strftime("%Y-%m-%d")}')
         return
 
@@ -201,7 +202,7 @@ async def hard_delete(spark_session: SparkSession, scenario_json_path):
         exit(1)
 
 
-async def soft_delete(spark_session: SparkSession, scenario_json_path, id_values_to_soft_delete):
+def soft_delete(spark_session: SparkSession, scenario_json_path, id_values_to_soft_delete):
     name, import_save_location, temp_save_location, import_save_type, import_mode, id_field_name, delimiter, \
     hard_delete_in_years, enforce_data_model, is_apply_year_to_save_location, report_save_location, \
     report_save_type = get_scenario_defaults(scenario_json_path)
@@ -220,15 +221,15 @@ async def soft_delete(spark_session: SparkSession, scenario_json_path, id_values
         found_in_parquets = read_spark_parquet(spark_session, import_save_location)
     else:
         for directory in hdfs_get_folder_names(spark_session, import_save_location):
-            if found_in_parquets is not None and not found_in_parquets.rdd.isEmpty():
+            if found_in_parquets is not None and not found_in_parquets.isEmpty():
                 u_data = read_spark_parquet(spark_session, f'{settings.default_data_location}/{directory}')
-                if not u_data.rdd.isEmpty():
+                if not u_data.isEmpty():
                     found_in_parquets = found_in_parquets.union(u_data)
             else:
                 found_in_parquets = read_spark_parquet(spark_session,
                                                        f'{settings.default_data_location}/{directory}')
 
-    if found_in_parquets.rdd.isEmpty():
+    if found_in_parquets.isEmpty():
         logger.error(f'No data found in {import_save_location}')
         return
 
@@ -272,15 +273,20 @@ async def soft_delete(spark_session: SparkSession, scenario_json_path, id_values
             logger.info(f'Save as {import_save_type} finished into {import_save_location} '
                         f'with overwrite')
         else:
+            # Retention demo only: uncomment these lines and comment the current-date line below.
+            # x_years_old = 3
+            # x_years_ago = datetime.now() - relativedelta(years=x_years_old)
+            # today = x_years_ago.strftime('%Y-%m-%d')
             today = datetime.today().strftime('%Y-%m-%d')
 
-            years = np.array(read_spark_parquet(spark_session, temp_save_location).filter(
-                func.col(SOFT_DELETED_FIELD_NAME) == today)
-                             .select(YEAR_IMPORTED_FIELD_NAME)
-                             .distinct()
-                             .collect())
+            years = (read_spark_parquet(spark_session, temp_save_location)
+                     .filter(func.col(SOFT_DELETED_FIELD_NAME) == today)
+                     .select(YEAR_IMPORTED_FIELD_NAME)
+                     .distinct()
+                     .collect())
 
-            for year in list(itertools.chain(*years)):
+            for row in years:
+                year = row[YEAR_IMPORTED_FIELD_NAME]
                 write_spark_parquet(read_spark_parquet(spark_session, temp_save_location).where(
                     f'{YEAR_IMPORTED_FIELD_NAME}={year}'), f'{import_save_location}_{year}',
                     ParquetSaveMode.overwrite, DAY_PARTITION_FIELD_NAME)
@@ -304,18 +310,20 @@ async def soft_delete(spark_session: SparkSession, scenario_json_path, id_values
             logger.info(
                 f'Save as {s_type} finished into {table_name} table on {import_save_location} with overwrite')
         else:
+            # Retention demo only: uncomment these lines and comment the current-date line below.
             # x_years_old = 3
             # x_years_ago = datetime.now() - relativedelta(years=x_years_old)
             # today = x_years_ago.strftime('%Y-%m-%d')
             today = datetime.today().strftime('%Y-%m-%d')
 
-            years = np.array(read_spark_parquet(spark_session, temp_save_location).filter(
-                func.col(SOFT_DELETED_FIELD_NAME) == today)
-                             .select(YEAR_IMPORTED_FIELD_NAME)
-                             .distinct()
-                             .collect())
+            years = (read_spark_parquet(spark_session, temp_save_location)
+                     .filter(func.col(SOFT_DELETED_FIELD_NAME) == today)
+                     .select(YEAR_IMPORTED_FIELD_NAME)
+                     .distinct()
+                     .collect())
 
-            for year in list(itertools.chain(*years)):
+            for row in years:
+                year = row[YEAR_IMPORTED_FIELD_NAME]
                 write_hive_table(f'{table_name}_{year}',
                                  read_spark_parquet(spark_session, temp_save_location).where(
                                      f'{YEAR_IMPORTED_FIELD_NAME}={year}'), f'{import_save_location}_{year}',
@@ -332,9 +340,9 @@ async def soft_delete(spark_session: SparkSession, scenario_json_path, id_values
         exit(1)
 
 
-async def encrypt_and_import(spark_session: SparkSession,
-                             scenario_json_path: str, input_file_path: str,
-                             day: str):
+def encrypt_and_import(spark_session: SparkSession,
+                       scenario_json_path: str, input_file_path: str,
+                       day: str):
     name, import_save_location, temp_save_location, import_save_type, import_mode, id_field_name, delimiter, \
     hard_delete_in_years, enforce_data_model, is_apply_year_to_save_location, report_save_location, \
     report_save_type = get_scenario_defaults(scenario_json_path)
@@ -345,26 +353,33 @@ async def encrypt_and_import(spark_session: SparkSession,
                 f'day={partition_name}')
     spark_session.sparkContext.setJobDescription(f'Encrypt & import for {name} - load raw data')
 
-    raw_data = spark_session.read.option('delimiter', delimiter).csv(input_file_path, inferSchema=True, header=True)
-    if raw_data.rdd.isEmpty():
+    # Scenario definitions are the schema authority. Reading CSV cells as strings
+    # makes conversion deterministic even when corrupt values occur in a column.
+    raw_data = spark_session.read.option('delimiter', delimiter).csv(input_file_path, inferSchema=False, header=True)
+    if raw_data.isEmpty():
         logger.error(f'No data found in {input_file_path}')
         exit(1)
 
     if enforce_data_model:
         missing_fields = get_missing_fields(scenario_json_path, raw_data)
+        unexpected_fields = get_unexpected_fields(scenario_json_path, raw_data)
         if missing_fields:
-            logger.error(f'Following field(s) are missing in the scenario file: '
+            logger.error(f'Following scenario field(s) are missing from the input file: '
                          f'{", ".join(map(str, missing_fields)).strip()}')
+            exit(1)
+        if unexpected_fields:
+            logger.error(f'Following input field(s) are not defined in the scenario: '
+                         f'{", ".join(map(str, unexpected_fields)).strip()}')
             exit(1)
 
     logger.info(f'Raw data loaded from {input_file_path} for {name} entity')
 
     spark_session.sparkContext.setJobDescription(f'Encrypt & import for {name} - data refinement')
-    refined_df = await validate_and_refine(scenario_json_path, raw_data, partition_name)
+    refined_df = validate_and_refine(scenario_json_path, raw_data, partition_name)
     logger.info(f'Data refinement and validation applied for {name} entity')
 
     spark_session.sparkContext.setJobDescription(f'Encrypt & import for {name} - apply encryption')
-    encrypted_df = await execute_crypto_action(refined_df, scenario_json_path, CryptoAction.encrypt)
+    encrypted_df = execute_crypto_action(refined_df, scenario_json_path, CryptoAction.encrypt)
     logger.info(f'Cryptography applied for {name} entity')
 
     logger.info(f'Save as {import_save_type} started. Import mode: {import_mode}')

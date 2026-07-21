@@ -1,4 +1,4 @@
-from datetime import datetime
+import logging
 from datetime import timedelta
 
 from dateutil.parser import parse as dt_parse
@@ -7,12 +7,10 @@ from pyspark.sql.types import StructType, StructField, StringType
 
 from conf import settings
 from util.constants import DAY_PARTITION_FIELD_NAME, EXCEPTION_TEMPLATE
-from util.logger import get_logger
 from util.parquet_save_mode import ParquetSaveMode
 from util.type_checkers import is_timestamp
 
-logger = get_logger(__name__, settings.logging_location,
-                    f'{datetime.today().strftime("%Y-%m-%d")}.log', settings.active_profile)
+logger = logging.getLogger(__name__)
 
 
 def write_spark_parquet(source: DataFrame, save_path: str, save_mode: ParquetSaveMode, *partition_by):

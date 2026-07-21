@@ -1,27 +1,29 @@
 import argparse
-import asyncio
+import logging
 import time
 
 from conf import settings
 from etl.printer import print_report_data
-from reporter import spark_session, logger
 from reporter.simple_sales_report import REPORT_NAME
+from util.application_util import spark_application
 from util.constants import CLI_DATE, CLI_SCENARIO_JSON_PATH
 
 
 # ex. --scenario ../../scenario/sales_records_scenario.json --date 2020-04-07
-async def main():
-    await set_args()
-
-    logger.info(
-        f'###### KEBAB STORM STARTED | Active YAML Configuration: {settings.active_profile} '
-        f'on Spark {spark_session.version} with application ID {spark_session.sparkContext.applicationId} ######')
-
-    await print_report_data(spark_session, settings.active_config[CLI_SCENARIO_JSON_PATH].get(), REPORT_NAME,
-                            settings.active_config[CLI_DATE].get())
+logger = logging.getLogger(__name__)
 
 
-async def set_args():
+def main():
+    set_args()
+    with spark_application(__name__) as (spark_session, application_logger):
+        application_logger.info(
+            f'###### KEBAB STORM STARTED | Active YAML Configuration: {settings.active_profile} '
+            f'on Spark {spark_session.version} with application ID {spark_session.sparkContext.applicationId} ######')
+        print_report_data(spark_session, settings.active_config[CLI_SCENARIO_JSON_PATH].get(), REPORT_NAME,
+                          settings.active_config[CLI_DATE].get())
+
+
+def set_args():
     parser = argparse.ArgumentParser(description='KebabStorm: A Spark driver for to demonstrate how to apply '
                                                  'cryptography (with AES) on UDF level with data quality checks based '
                                                  'on ETL scenarios in JSON format')
@@ -43,6 +45,6 @@ async def set_args():
 
 if __name__ == "__main__":
     s = time.perf_counter()
-    asyncio.run(main())
+    main()
     elapsed = time.perf_counter() - s
     logger.info(f"{__file__} executed in {elapsed:0.2f} seconds")

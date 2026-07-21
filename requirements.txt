@@ -1,30 +1,16 @@
-# --- Spark stack ---
-# Spark 4.1.x / PySpark 4.1.1 supports Python >= 3.10 (including 3.14)
+# Runtime baseline: Python >= 3.10 and Java >= 17
+# Keep the local PySpark version aligned with the target Spark cluster.
 pyspark==4.1.1
-# NOTE: `pyspark-stubs` on PyPI is archived and only published up to 3.0.0.post3.
 
-
-# --- NumPy ---
-# Latest stable NumPy supporting Python 3.11–3.14
-numpy==2.4.1
-
-# --- Date/time & serialization ---
-python-dateutil==2.9.0.post0
-pytz==2025.2
+# Configuration and scenario loading
+confuse==2.2.0
+jsonschema==4.26.0
 PyYAML==6.0.3
-protobuf==6.33.4
-
-# --- CLI / config helpers ---
-docopt==0.6.2
-confuse==2.1.0
-
-# --- HTTP stack (pin only top-level) ---
-requests==2.32.5
-
-# --- Security / misc ---
-pycryptodome==3.23.0
+typing-extensions==4.16.0
 validators==0.35.0
-yarg==0.1.10
 
-# Legacy helper (remove if unused)
-six==1.17.0
+# Date calculations
+python-dateutil==2.9.0.post0
+
+# Custom field-level AES implementation
+pycryptodome==3.23.0
