@@ -36,21 +36,18 @@
       "name": "Age_Text",
       "map_as": "AGE",
       "type": "string|integer",
-      "encryption_key": "_cQyJeF1k9fRT5UD2Sf-6Yv-SdzOsJla",
       "is_encrypted": false
     },
     {
       "name": "Visit_Count",
       "map_as": "VISIT_COUNT_TEXT",
       "type": "integer|string",
-      "encryption_key": "Rzi7fiC2U46FUIO8E2mJP7Id7gS1J6ow",
       "is_encrypted": false
     },
     {
       "name": "Medication_Count_Text",
       "map_as": "MEDICATION_COUNT",
       "type": "string|byte",
-      "encryption_key": "Og6L4lTHirnMS0r7tyG7cZmDSllCNgpG",
       "is_encrypted": false
     },
     {
@@ -64,35 +61,30 @@
       "name": "Weight_KG",
       "map_as": "WEIGHT_KG_TEXT",
       "type": "decimal(6,2)|string",
-      "encryption_key": "u3KzRH7wTNwXNSpzEG_18yVVjy75Elro",
       "is_encrypted": false
     },
     {
       "name": "BMI_Text",
       "map_as": "BMI",
       "type": "string|double",
-      "encryption_key": "PF22O_Hhwo4MSNruX6F6DkwT31FHj6OM",
       "is_encrypted": false
     },
     {
       "name": "Heart_Rate_Text",
       "map_as": "HEART_RATE",
       "type": "integer|short",
-      "encryption_key": "IYlGug1BmYY8QnCMZo5felH4-g7CYN70",
       "is_encrypted": false
     },
     {
       "name": "Systolic_BP_Text",
       "map_as": "SYSTOLIC_BP",
       "type": "string|short",
-      "encryption_key": "cvZw2_JNJe9Rz_0UDX-RVkVmQp_V8bGN",
       "is_encrypted": false
     },
     {
       "name": "Diastolic_BP",
       "map_as": "DIASTOLIC_BP",
       "type": "integer|short",
-      "encryption_key": "zoK6NKwvVdgRBdbfiiWQPsr9oF9aFTcU",
       "is_encrypted": false
     },
     {
@@ -106,14 +98,12 @@
       "name": "Risk_Score",
       "map_as": "RISK_SCORE_TEXT",
       "type": "double|string|target_format=%.3f",
-      "encryption_key": "847Rq5HNnRkf5D_dGOSHcNpIp449gllU",
       "is_encrypted": false
     },
     {
       "name": "Daily_Steps",
       "map_as": "DAILY_STEPS",
       "type": "long|integer",
-      "encryption_key": "UZmVp1Zxi9fYCis6VbdXnrlm22X57qrZ",
       "is_encrypted": false
     },
     {
@@ -134,7 +124,6 @@
       "name": "Last_Checkup_Date",
       "map_as": "LAST_CHECKUP_TEXT",
       "type": "date|string|source_format=%Y-%m-%d|target_format=%d/%m/%Y",
-      "encryption_key": "79DO5NmtzngpvI138Cq_DYnGzKKKM_mV",
       "is_encrypted": false
     },
     {
@@ -148,7 +137,6 @@
       "name": "Discharge_Time",
       "map_as": "DISCHARGE_EPOCH_SECONDS",
       "type": "timestamp|long|source_format=%Y-%m-%d %H:%M:%S|epoch_unit=seconds",
-      "encryption_key": "RJfY0oPGGrc8WmQo_crxWyjATatIEBDv",
       "is_encrypted": false
     },
     {
@@ -162,28 +150,24 @@
       "name": "Consent_Text",
       "map_as": "HAS_CONSENT",
       "type": "string|boolean|true_values=yes,y,1|false_values=no,n,0",
-      "encryption_key": "eDKiu1i2cvEsjXIX1LtN8BFo56ceTMn8",
       "is_encrypted": false
     },
     {
       "name": "Active_Text",
       "map_as": "ACTIVE_FLAG",
       "type": "boolean|integer",
-      "encryption_key": "l86A-juGF4ZV6Vrn2u9RF5UrvsCD3R7H",
       "is_encrypted": false
     },
     {
       "name": "Smoker_Code",
       "map_as": "IS_SMOKER",
       "type": "integer|boolean",
-      "encryption_key": "dlS2HyY7YDxwxIaetDPqsLq3KXclTNUc",
       "is_encrypted": false
     },
     {
       "name": "Emergency_Contact",
       "map_as": "EMERGENCY_CONTACT_STATUS",
       "type": "boolean|string|true_value=AVAILABLE|false_value=UNAVAILABLE",
-      "encryption_key": "1q8hHXho77_6DLtHFTJ3hl1Sors5Thr2",
       "is_encrypted": false
     },
     {

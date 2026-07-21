@@ -36,14 +36,12 @@
       "name": "Sales_Channel",
       "map_as": "SALESCHANNEL",
       "type": "string|string",
-      "encryption_key": "CEY64MuGcnUyXpWtyA885thG9NPPks",
       "is_encrypted": false
     },
     {
       "name": "Order_Priority",
       "map_as": "ORDERPRIORITY",
       "type": "string|string",
-      "encryption_key": "GLF75Jet46dNnW2eyLD5AXs4JGLTHc",
       "is_encrypted": false
     },
     {
@@ -78,7 +76,6 @@
       "name": "Unit_Price",
       "map_as": "UNITPRICE",
       "type": "string|double",
-      "encryption_key": "fUGjtwUwdYdzR2wrV7a5nDY4PptuRZB8",
       "is_encrypted": false
     },
     {

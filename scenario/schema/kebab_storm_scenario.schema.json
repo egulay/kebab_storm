@@ -81,7 +81,6 @@
         "name",
         "map_as",
         "type",
-        "encryption_key",
         "is_encrypted"
       ],
       "properties": {
@@ -114,12 +113,34 @@
             ]
           },
           "then": {
+            "required": [
+              "encryption_key"
+            ],
             "properties": {
               "encryption_key": {
                 "minLength": 64,
                 "maxLength": 64,
                 "pattern": "^[A-Fa-f0-9]{64}$"
               }
+            }
+          }
+        },
+        {
+          "if": {
+            "properties": {
+              "is_encrypted": {
+                "const": false
+              }
+            },
+            "required": [
+              "is_encrypted"
+            ]
+          },
+          "then": {
+            "not": {
+              "required": [
+                "encryption_key"
+              ]
             }
           }
         }

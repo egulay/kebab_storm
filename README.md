@@ -40,7 +40,8 @@ or incorrectly keyed values from being silently decrypted.
 
 Every encrypted field requires its own unique 256-bit random key, represented in scenario JSON as exactly 64
 hexadecimal characters. This encoding represents 32 random bytes without reducing their entropy. Scenario validation
-rejects malformed, shorter, longer, or reused keys. In a service deployment these keys should be delivered through the
+rejects malformed, shorter, longer, or reused keys. Fields with `"is_encrypted": false` omit `encryption_key`
+entirely; empty or placeholder keys are not used. In a service deployment, real keys should be delivered through the
 protected scenario/Vault path described below. The AES-256-GCM binary format is not compatible with the former
 AES-128-CBC/Base64 format; data written by the former implementation must be removed and imported again.
 
@@ -320,14 +321,12 @@ and `timestamp|%m/%d/%Y|%Y-%m-%d` are interpreted as string-to-target conversion
       "name": "Sales_Channel",
       "map_as": "SALESCHANNEL",
       "type": "string|string",
-      "encryption_key": "CEY64MuGcnUyXpWtyA885thG9NPPks",
       "is_encrypted": false
     },
     {
       "name": "Order_Priority",
       "map_as": "ORDERPRIORITY",
       "type": "string|string",
-      "encryption_key": "GLF75Jet46dNnW2eyLD5AXs4JGLTHc",
       "is_encrypted": false
     },
     {
@@ -362,7 +361,6 @@ and `timestamp|%m/%d/%Y|%Y-%m-%d` are interpreted as string-to-target conversion
       "name": "Unit_Price",
       "map_as": "UNITPRICE",
       "type": "string|double",
-      "encryption_key": "fUGjtwUwdYdzR2wrV7a5nDY4PptuRZB8",
       "is_encrypted": false
     },
     {

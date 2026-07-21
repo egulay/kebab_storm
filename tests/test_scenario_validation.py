@@ -93,6 +93,14 @@ class ScenarioValidationTest(unittest.TestCase):
         with self.assertRaisesRegex(ScenarioSchemaValidationError, 'encryption_key'):
             validate_scenario(scenario)
 
+    def test_rejects_encryption_key_on_unencrypted_field(self):
+        scenario = copy.deepcopy(self.scenario)
+        unencrypted_field = next(field for field in scenario['fields'] if not field['is_encrypted'])
+        unencrypted_field['encryption_key'] = 'a' * 64
+
+        with self.assertRaisesRegex(ScenarioSchemaValidationError, 'encryption_key'):
+            validate_scenario(scenario)
+
     def test_rejects_non_32_byte_or_reused_encryption_keys(self):
         scenario = copy.deepcopy(self.scenario)
         scenario['fields'][0]['encryption_key'] = 'too-short'
