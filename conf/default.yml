@@ -10,6 +10,11 @@ spark_config:
   spark.serializer: "org.apache.spark.serializer.KryoSerializer"
   spark.shuffle.compress: "true"
   spark.shuffle.io.maxRetries: 5
+  # Iceberg example (uncomment when storage_provider is set to "iceberg"):
+  # spark.sql.extensions: "org.apache.iceberg.spark.extensions.IcebergSparkSessionExtensions"
+  # spark.sql.catalog.kebab: "org.apache.iceberg.spark.SparkCatalog"
+  # spark.sql.catalog.kebab.type: "hadoop"
+  # spark.sql.catalog.kebab.warehouse: "/data/kebab_storm/iceberg"
 
 enable_hive_support: false
 
