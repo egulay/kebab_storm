@@ -11,8 +11,8 @@ class ReportingDataTest(unittest.TestCase):
     def test_cross_year_range_without_storage_returns_consistent_empty_result(
             self, get_scenario_defaults, _hdfs_path_exist):
         get_scenario_defaults.return_value = (
-            'PersonalHealthRecords', '/health', '/tmp/health', 'parquet', 'append',
-            'Patient_Record_ID', ',', 3, True, True, '/health_reports', 'parquet',
+            'PersonalHealthRecords', '/health', '/tmp/health', 'append',
+            'Patient_Record_ID', ',', 3, True, True, '/health_reports',
         )
         empty_data = Mock()
         spark = Mock()
@@ -27,7 +27,7 @@ class ReportingDataTest(unittest.TestCase):
             '2026-01-01',
         )
 
-        self.assertEqual((empty_data, 'parquet', '/health_reports', True), result)
+        self.assertEqual((empty_data, '/health_reports', True), result)
 
 
 if __name__ == '__main__':

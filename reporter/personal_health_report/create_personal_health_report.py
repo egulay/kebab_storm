@@ -13,7 +13,7 @@ from util.constants import CLI_SCENARIO_JSON_PATH, CLI_DATE, CLI_INCLUDE_SOFT_DE
 from util.crypto.crypto_action import CryptoAction
 from util.etl_util import get_boolean, get_day_partition_name_and_year
 from util.parquet_save_mode import ParquetSaveMode
-from util.parquet_util import write_spark_parquet, write_hive_table
+from util.storage_util import is_iceberg_storage, storage_description, write_storage
 
 
 # ex. --scenario ../../scenario/personal_health_records_scenario.json --include-soft-deleted nope --date 2026-07-21
@@ -32,7 +32,7 @@ def main():
             f'on Spark {spark_session.version} with application ID {spark_session.sparkContext.applicationId} ######')
 
         if len(date_range) == 1:
-            data, report_save_type, report_save_location, is_apply_year_to_save_location = get_reporting_data(
+            data, report_save_location, is_apply_year_to_save_location = get_reporting_data(
                 spark_session,
                 settings.active_config[CLI_SCENARIO_JSON_PATH].get(),
                 CryptoAction.decrypt,
@@ -40,7 +40,7 @@ def main():
                 date_range_arg,
             )
         else:
-            data, report_save_type, report_save_location, is_apply_year_to_save_location = \
+            data, report_save_location, is_apply_year_to_save_location = \
                 get_reporting_data_between_dates(
                     spark_session,
                     settings.active_config[CLI_SCENARIO_JSON_PATH].get(),
@@ -76,33 +76,12 @@ def main():
                  .alias('HIGH_RISK_PATIENT_COUNT')) \
             .withColumn(DAY_PARTITION_FIELD_NAME, func.lit(partition_name))
 
-        application_logger.info(f'Save as {report_save_type} started')
-        if str(report_save_type).startswith('parquet'):
-            write_spark_parquet(sample_report,
-                                f'{report_save_location}/{REPORT_NAME}' if not is_apply_year_to_save_location else
-                                f'{report_save_location}_{year}/{REPORT_NAME}',
-                                ParquetSaveMode.overwrite,
-                                DAY_PARTITION_FIELD_NAME)
-            application_logger.info(f'Save as {report_save_type} finished with partition day={partition_name}')
-            return
-        if str(report_save_type).startswith('table'):
-            table_name = str(report_save_type).split('|')[1]
-            save_type = str(report_save_type).split('|')[0]
-            write_hive_table(
-                table_name if not is_apply_year_to_save_location else f'{table_name}_{year}',
-                sample_report,
-                f'{report_save_location}/{REPORT_NAME}' if not is_apply_year_to_save_location
-                else f'{report_save_location}_{year}/{REPORT_NAME}',
-                ParquetSaveMode.overwrite,
-                DAY_PARTITION_FIELD_NAME,
-            )
-            application_logger.info(
-                f'Save as {save_type} finished into {table_name} table with partition day={partition_name}')
-            return
-        application_logger.error(
-            f'Save mode {report_save_type} is not identified. Please check scenario JSON located in '
-            f'{settings.active_config[CLI_SCENARIO_JSON_PATH].get()}')
-        raise SystemExit(1)
+        application_logger.info(f'Save as {storage_description()} started')
+        report_location = f'{report_save_location}/{REPORT_NAME}' if is_iceberg_storage() or \
+            not is_apply_year_to_save_location else f'{report_save_location}_{year}/{REPORT_NAME}'
+        write_storage(sample_report, report_location, ParquetSaveMode.overwrite, DAY_PARTITION_FIELD_NAME)
+        application_logger.info(
+            f'Save as {storage_description()} finished with partition day={partition_name}')
 
 
 def set_args():

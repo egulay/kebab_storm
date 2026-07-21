@@ -3,8 +3,6 @@
   "import_save_location": "/Personal_Health_Records",
   "report_save_location": "/Personal_Health_Record_Reports",
   "temp_save_location": "/Users/emregulay/tmp/PersonalHealthRecords",
-  "import_save_type": "parquet",
-  "report_save_type": "parquet",
   "import_mode": "append",
   "id_field": "Patient_Record_ID",
   "delimiter": ",",

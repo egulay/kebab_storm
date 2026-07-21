@@ -73,8 +73,8 @@ class PersonalHealthReportTest(unittest.TestCase):
                 patch.object(report_module, 'spark_application', application_context), \
                 patch.object(report_module, 'get_day_partition_name_and_year', return_value=('20260721', 2026)), \
                 patch.object(report_module, 'get_reporting_data',
-                             return_value=(source, 'parquet', '/reports', False)) as get_reporting_data, \
-                patch.object(report_module, 'write_spark_parquet', side_effect=capture_report):
+                             return_value=(source, '/reports', False)) as get_reporting_data, \
+                patch.object(report_module, 'write_storage', side_effect=capture_report):
             report_module.main()
 
         get_reporting_data.assert_called_once_with(

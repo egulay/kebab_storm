@@ -1,0 +1,20 @@
+spark_config:
+  spark.hadoop.mapreduce.fileoutputcommitter.algorithm.version: 2
+  spark.ui.showConsoleProgress: "false"
+  spark.speculation: "false"
+  spark.ui.enabled: "true"
+  spark.debug.maxToStringFields: 100
+  spark.python.worker.reuse: "true"
+  spark.sql.parquet.cacheMetadata: "false"
+  spark.sql.parquet.writeLegacyFormat: "false"
+  spark.serializer: "org.apache.spark.serializer.KryoSerializer"
+  spark.shuffle.compress: "true"
+  spark.shuffle.io.maxRetries: 5
+
+enable_hive_support: false
+
+# Physical files are always Parquet. Select "iceberg" to manage them through
+# an externally configured Iceberg catalog instead of raw filesystem paths.
+storage_provider: "parquet"
+iceberg_catalog: "kebab"
+iceberg_namespace: "default"

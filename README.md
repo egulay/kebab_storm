@@ -146,12 +146,52 @@ The following optional environment variables avoid editing YAML during deploymen
 KEBAB_STORM_SPARK_MASTER
 KEBAB_STORM_LOGGING_LOCATION
 KEBAB_STORM_DATA_LOCATION
+KEBAB_STORM_STORAGE_PROVIDER
 ```
 
 Each command creates Spark explicitly after parsing its arguments and always stops the session when the job finishes.
-Hive support is disabled locally and enabled for the dev/prod profiles. Deployment-time properties such as driver
-memory and deploy mode should be supplied through `spark-submit`; environment YAML is reserved for settings that the
-application can apply while constructing its Spark session.
+Deployment-time properties such as driver memory and deploy mode should be supplied through `spark-submit`;
+environment YAML is reserved for settings that the application can apply while constructing its Spark session.
+
+### Storage Provider
+
+Kebab Storm always writes Parquet as the physical data-file format. The active environment YAML selects whether those
+files are unmanaged raw Parquet or managed as Apache Iceberg tables:
+
+```yaml
+storage_provider: "parquet"
+iceberg_catalog: "kebab"
+iceberg_namespace: "default"
+```
+
+`parquet` is the default and preserves the filesystem and year-folder behavior used by the demos. `iceberg` keeps one
+logical catalog table for each scenario location, uses Parquet underneath, and lets Iceberg manage table metadata,
+snapshots, and partitions. Storage technology is intentionally not defined in a scenario because it belongs to the
+Spark environment rather than the dataset contract.
+
+An Iceberg environment must configure its catalog and provide the matching JVM runtime. For the current Spark 4.1
+baseline, a local Hadoop-catalog example is:
+
+```yaml
+storage_provider: "iceberg"
+iceberg_catalog: "kebab"
+iceberg_namespace: "default"
+
+spark_config:
+  spark.sql.extensions: "org.apache.iceberg.spark.extensions.IcebergSparkSessionExtensions"
+  spark.sql.catalog.kebab: "org.apache.iceberg.spark.SparkCatalog"
+  spark.sql.catalog.kebab.type: "hadoop"
+  spark.sql.catalog.kebab.warehouse: "/data/kebab_storm/iceberg"
+```
+
+Supply `org.apache.iceberg:iceberg-spark-runtime-4.1_2.13:1.11.0` through the managed cluster installation,
+`spark-submit --packages`, or `spark.jars.packages`; it is a JVM dependency and therefore does not belong in
+`requirements.txt`. A Cloudera deployment can replace the Hadoop catalog settings with its Hive or REST catalog
+configuration without changing the scenarios or Python executors.
+
+Iceberg hard deletion removes rows from the current snapshot. The platform retention schedule must also expire old
+snapshots and remove orphan files when physical removal is required; otherwise older snapshots may continue to
+reference deleted encrypted records.
 
 ## Features
 Executor scripts are located in [/etl/executor/](https://github.com/egulay/kebab_storm/tree/master/etl/executor) directory with the features below:
@@ -208,8 +248,6 @@ and `timestamp|%m/%d/%Y|%Y-%m-%d` are interpreted as string-to-target conversion
   "import_save_location": "/Sales",
   "report_save_location": "/Sales_Reports",
   "temp_save_location": "/Users/emregulay/tmp/Sales",
-  "import_save_type": "parquet",
-  "report_save_type": "parquet",
   "import_mode": "append",
   "id_field": "Order_ID",
   "delimiter": ",",
@@ -361,11 +399,11 @@ In [`util/etl_util.py`](util/etl_util.py), uncomment the retention-demo `relativ
 inside `generic_soft_delete()`. Comment the active three-line block that assigns, logs, and returns today's
 `soft_deleted` value.
 
-In `soft_delete()` in [`etl/importer.py`](etl/importer.py), uncomment the retention-demo block in the Parquet branch
-and comment the active `today = datetime.today()...` line immediately below it. The sales scenario uses this branch.
-For a table-based scenario, make the same switch in the table-output branch instead. Only the branch selected by
-`import_save_type` should be changed. Without this second switch, the backdated row exists in temporary data but its
-source year partition is not selected for overwrite, so the soft delete is not persisted.
+When `storage_provider` is `parquet`, also uncomment the retention-demo block in `soft_delete()` in
+[`etl/importer.py`](etl/importer.py) and comment the active `today = datetime.today()...` line immediately below it.
+This second switch lets raw Parquet select and overwrite the affected year folder. Without it, the backdated row exists
+in temporary data but its source partition is not selected for overwrite. Iceberg replaces the affected logical table
+without this filesystem-year lookup, so its retention demo requires only the `generic_soft_delete()` date switch.
 
 Hard delete also scans year-based import locations only through the retention cutoff year. Therefore, import this demo
 with a date at least three years old. For example, when running on `2026-07-21`, use `2023-07-21`:

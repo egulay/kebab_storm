@@ -12,7 +12,10 @@ _CONFIG_OVERRIDES = {
     'KEBAB_STORM_SPARK_MASTER': 'spark_master',
     'KEBAB_STORM_LOGGING_LOCATION': 'kebab_storm_logging_location',
     'KEBAB_STORM_DATA_LOCATION': 'default_data_location',
+    'KEBAB_STORM_STORAGE_PROVIDER': 'storage_provider',
 }
+_SUPPORTED_STORAGE_PROVIDERS = frozenset({'parquet', 'iceberg'})
+
 
 class Settings:
     def __init__(self, environment=None):
@@ -35,6 +38,15 @@ class Settings:
         self.enable_hive_support = self.active_config['enable_hive_support'].get(bool)
         self.logging_location = self.active_config['kebab_storm_logging_location'].get(str)
         self.default_data_location = self.active_config['default_data_location'].get(str)
+        self.storage_provider = self.active_config['storage_provider'].get(str).strip().lower()
+        if self.storage_provider not in _SUPPORTED_STORAGE_PROVIDERS:
+            supported = ', '.join(sorted(_SUPPORTED_STORAGE_PROVIDERS))
+            raise ValueError(f'Unsupported storage_provider value: {self.storage_provider!r}. '
+                             f'Expected one of: {supported}')
+        self.iceberg_catalog = self.active_config['iceberg_catalog'].get(str).strip()
+        self.iceberg_namespace = self.active_config['iceberg_namespace'].get(str).strip()
+        if self.storage_provider == 'iceberg' and not (self.iceberg_catalog and self.iceberg_namespace):
+            raise ValueError('iceberg_catalog and iceberg_namespace are required for Iceberg storage')
         self.banner = (_THIS_FOLDER / 'banner.txt').read_text(encoding='utf-8')
 
     @staticmethod

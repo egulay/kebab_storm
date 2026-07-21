@@ -52,6 +52,13 @@ class ScenarioValidationTest(unittest.TestCase):
         with self.assertRaisesRegex(ScenarioSchemaValidationError, 'Additional properties are not allowed'):
             validate_scenario(scenario)
 
+    def test_rejects_removed_scenario_storage_type(self):
+        scenario = copy.deepcopy(self.scenario)
+        scenario['import_save_type'] = 'parquet'
+
+        with self.assertRaisesRegex(ScenarioSchemaValidationError, 'import_save_type'):
+            validate_scenario(scenario)
+
     def test_accepts_explicit_conversion(self):
         scenario = copy.deepcopy(self.scenario)
         scenario['fields'][0]['type'] = 'string|boolean|true_values=yes|false_values=no'

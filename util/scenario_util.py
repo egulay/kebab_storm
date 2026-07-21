@@ -11,10 +11,10 @@ from conf import settings
 from util.data_type_util import parse_data_type
 from util.constants import DATE_IMPORTED_FIELD_NAME, DAY_PARTITION_FIELD_NAME, FIELD_NAME, FIELD_IS_ENCRYPTED, \
     FIELD_ENCRYPTION_KEY, FIELD_TYPE, FIELDS, FIELD_MAP_AS, SOFT_DELETED_FIELD_NAME, YEAR_IMPORTED_FIELD_NAME, \
-    SCENARIO_IMPORT_SAVE_LOCATION, SCENARIO_IMPORT_SAVE_TYPE, SCENARIO_DELIMITER, \
+    SCENARIO_IMPORT_SAVE_LOCATION, SCENARIO_DELIMITER, \
     SCENARIO_ENTITY_NAME, SCENARIO_ID_FIELD, SCENARIO_TEMP_SAVE_LOCATION, SCENARIO_IMPORT_MODE, \
     SCENARIO_HARD_DELETE_CONDITION_IN_YEARS, SCENARIO_ENFORCE_DATA_MODEL, SCENARIO_IS_APPLY_YEAR_TO_SAVE_LOCATION, \
-    SCENARIO_REPORT_SAVE_TYPE, SCENARIO_REPORT_SAVE_LOCATION
+    SCENARIO_REPORT_SAVE_LOCATION
 
 
 SCENARIO_SCHEMA_PATH = (
@@ -52,7 +52,6 @@ def get_scenario_defaults(scenario_json_path):
     name = get_entity_name(scenario)
     import_save_location = get_import_save_location(scenario)
     temp_save_location = get_temp_save_location(scenario)
-    import_save_type = get_import_save_type(scenario)
     import_mode = get_import_mode(scenario)
     id_field_name = get_id_field_name(scenario)
     delimiter = get_delimiter(scenario)
@@ -60,21 +59,18 @@ def get_scenario_defaults(scenario_json_path):
     enforce_data_model = get_enforce_data_model(scenario)
     is_apply_year_to_save_location = get_is_apply_year_to_save_location(scenario)
     report_save_location = get_report_save_location(scenario)
-    report_save_type = get_report_save_type(scenario)
 
     del scenario
     return name, \
            import_save_location, \
            temp_save_location, \
-           import_save_type, \
            import_mode, \
            id_field_name, \
            delimiter, \
            hard_delete_in_years, \
            enforce_data_model, \
            is_apply_year_to_save_location, \
-           report_save_location, \
-           report_save_type
+           report_save_location
 
 
 def load_scenario(path):
@@ -123,8 +119,8 @@ def validate_scenario(scenario):
     required_scenario_keys = (
         SCENARIO_DELIMITER, SCENARIO_ENFORCE_DATA_MODEL, SCENARIO_ENTITY_NAME,
         SCENARIO_HARD_DELETE_CONDITION_IN_YEARS, SCENARIO_ID_FIELD, SCENARIO_IMPORT_MODE,
-        SCENARIO_IMPORT_SAVE_LOCATION, SCENARIO_IMPORT_SAVE_TYPE, SCENARIO_IS_APPLY_YEAR_TO_SAVE_LOCATION,
-        SCENARIO_REPORT_SAVE_LOCATION, SCENARIO_REPORT_SAVE_TYPE, SCENARIO_TEMP_SAVE_LOCATION, FIELDS,
+        SCENARIO_IMPORT_SAVE_LOCATION, SCENARIO_IS_APPLY_YEAR_TO_SAVE_LOCATION,
+        SCENARIO_REPORT_SAVE_LOCATION, SCENARIO_TEMP_SAVE_LOCATION, FIELDS,
     )
     missing_keys = [key for key in required_scenario_keys if key not in scenario]
     if missing_keys:
@@ -140,11 +136,6 @@ def validate_scenario(scenario):
 
     if scenario[SCENARIO_IMPORT_MODE] not in ('append', 'overwrite', 'ignore', 'errorifexists'):
         raise ValueError(f'Unsupported import mode: {scenario[SCENARIO_IMPORT_MODE]}')
-
-    for save_type_key in (SCENARIO_IMPORT_SAVE_TYPE, SCENARIO_REPORT_SAVE_TYPE):
-        save_type = str(scenario[save_type_key])
-        if not (save_type == 'parquet' or (save_type.startswith('table|') and save_type.split('|', 1)[1])):
-            raise ValueError(f'Unsupported save type for {save_type_key}: {save_type}')
 
     fields = scenario.get(FIELDS)
     if not isinstance(fields, list) or not fields:
@@ -228,14 +219,6 @@ def get_report_save_location(scenario_json):
 
 def get_is_apply_year_to_save_location(scenario_json):
     return bool(scenario_json[SCENARIO_IS_APPLY_YEAR_TO_SAVE_LOCATION])
-
-
-def get_import_save_type(scenario_json):
-    return scenario_json[SCENARIO_IMPORT_SAVE_TYPE]
-
-
-def get_report_save_type(scenario_json):
-    return scenario_json[SCENARIO_REPORT_SAVE_TYPE]
 
 
 def get_import_mode(scenario_json):

@@ -13,6 +13,7 @@ class SettingsTest(unittest.TestCase):
         self.assertEqual('local', settings.active_profile)
         self.assertEqual('local[*]', settings.spark_master)
         self.assertFalse(settings.enable_hive_support)
+        self.assertEqual('parquet', settings.storage_provider)
 
     def test_selects_profile_from_environment(self):
         with patch.dict(os.environ, {'KEBAB_STORM_ENV': ' DEV '}, clear=True):
@@ -41,6 +42,7 @@ class SettingsTest(unittest.TestCase):
             'KEBAB_STORM_SPARK_MASTER': 'local[2]',
             'KEBAB_STORM_LOGGING_LOCATION': '/tmp/kebab-storm-test-logs',
             'KEBAB_STORM_DATA_LOCATION': '/tmp/kebab-storm-test-data',
+            'KEBAB_STORM_STORAGE_PROVIDER': 'iceberg',
         }
         with patch.dict(os.environ, overrides, clear=True):
             settings = Settings('prod')
@@ -48,6 +50,12 @@ class SettingsTest(unittest.TestCase):
         self.assertEqual('local[2]', settings.spark_master)
         self.assertEqual('/tmp/kebab-storm-test-logs', settings.logging_location)
         self.assertEqual('/tmp/kebab-storm-test-data', settings.default_data_location)
+        self.assertEqual('iceberg', settings.storage_provider)
+
+    def test_rejects_unknown_storage_provider(self):
+        with patch.dict(os.environ, {'KEBAB_STORM_STORAGE_PROVIDER': 'hive'}, clear=True):
+            with self.assertRaisesRegex(ValueError, 'Unsupported storage_provider value'):
+                Settings('local')
 
 
 if __name__ == '__main__':

@@ -3,8 +3,6 @@
   "import_save_location": "/Sales",
   "report_save_location": "/Sales_Reports",
   "temp_save_location": "/Users/emregulay/tmp/Sales",
-  "import_save_type": "parquet",
-  "report_save_type": "parquet",
   "import_mode": "append",
   "id_field": "Order_ID",
   "delimiter": ",",

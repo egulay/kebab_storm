@@ -25,14 +25,6 @@ def write_spark_parquet(source: DataFrame, save_path: str, save_mode: ParquetSav
             .parquet(save_path)
 
 
-def write_hive_table(table_name: str, source: DataFrame, save_path: str, save_mode: ParquetSaveMode, *partition_by):
-    if partition_by:
-        source.write.saveAsTable(table_name, format='parquet', mode=save_mode.value, partitionBy=partition_by,
-                                 path=save_path)
-    else:
-        source.write.saveAsTable(table_name, format='parquet', mode=save_mode.value, path=save_path)
-
-
 def read_spark_parquet(session: SparkSession, parquet_path: str):
     try:
         if hdfs_path_exist(session, parquet_path):

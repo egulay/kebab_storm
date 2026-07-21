@@ -10,8 +10,6 @@
     "import_save_location",
     "report_save_location",
     "temp_save_location",
-    "import_save_type",
-    "report_save_type",
     "import_mode",
     "id_field",
     "delimiter",
@@ -32,12 +30,6 @@
     },
     "temp_save_location": {
       "$ref": "#/$defs/nonBlankString"
-    },
-    "import_save_type": {
-      "$ref": "#/$defs/saveType"
-    },
-    "report_save_type": {
-      "$ref": "#/$defs/saveType"
     },
     "import_mode": {
       "enum": [
@@ -76,10 +68,6 @@
     "nonBlankString": {
       "type": "string",
       "pattern": "\\S"
-    },
-    "saveType": {
-      "type": "string",
-      "pattern": "^(parquet|table\\|[^|\\s]+)$"
     },
     "field": {
       "type": "object",
