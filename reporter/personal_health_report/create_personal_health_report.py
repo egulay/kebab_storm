@@ -45,7 +45,7 @@ def main():
                     spark_session,
                     settings.active_config[CLI_SCENARIO_JSON_PATH].get(),
                     CryptoAction.decrypt,
-                    False,
+                    get_boolean(settings.active_config[CLI_INCLUDE_SOFT_DELETED].get()),
                     str(date_range[START_DATE_INDEX]),
                     str(date_range[END_DATE_INDEX]),
                 )
@@ -85,7 +85,7 @@ def main():
 
 
 def set_args():
-    parser = argparse.ArgumentParser(description='KebabStorm: A Spark driver for to demonstrate how to apply '
+    parser = argparse.ArgumentParser(description='Kebab Storm: A Spark driver demonstrating how to apply '
                                                  'cryptography (with AES) on UDF level with data quality checks based '
                                                  'on ETL scenarios in JSON format')
     required_arguments = parser.add_argument_group('required arguments')
@@ -97,7 +97,7 @@ def set_args():
                                     help='Include soft deleted records into the report', required=True)
 
     required_arguments.add_argument('--date', '-d', dest=CLI_DATE, metavar='2019-01-01->2020-01-01 | 2019-01-01',
-                                    help='Import date range in YYYY-mm-dd format. If date range is '
+                                    help='Import date range in YYYY-MM-DD format. If date range is '
                                          'required the separator must be -> without white spaces', required=True)
 
     args = parser.parse_args()

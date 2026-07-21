@@ -45,6 +45,23 @@ class ScenarioValidationTest(unittest.TestCase):
                 r"at \$\.fields\[0\]\.is_encrypted: 'yes' is not of type 'boolean'"):
             validate_scenario(scenario)
 
+    def test_rejects_non_boolean_input_cleanup_setting(self):
+        scenario = copy.deepcopy(self.scenario)
+        scenario['delete_input_file_after_import'] = 'yes'
+
+        with self.assertRaisesRegex(
+                ScenarioSchemaValidationError,
+                r"delete_input_file_after_import: 'yes' is not of type 'boolean'"):
+            validate_scenario(scenario)
+
+    def test_rejects_input_cleanup_with_ignore_mode(self):
+        scenario = copy.deepcopy(self.scenario)
+        scenario['delete_input_file_after_import'] = True
+        scenario['import_mode'] = 'ignore'
+
+        with self.assertRaisesRegex(ValueError, 'cannot be true when import_mode is ignore'):
+            validate_scenario(scenario)
+
     def test_rejects_unknown_scenario_setting(self):
         scenario = copy.deepcopy(self.scenario)
         scenario['data_generation'] = {'records': 50000}
@@ -73,13 +90,18 @@ class ScenarioValidationTest(unittest.TestCase):
     def test_rejects_missing_encryption_key(self):
         scenario = copy.deepcopy(self.scenario)
         scenario['fields'][0]['encryption_key'] = ''
-        with self.assertRaisesRegex(ScenarioSchemaValidationError, 'is too short'):
+        with self.assertRaisesRegex(ScenarioSchemaValidationError, 'encryption_key'):
             validate_scenario(scenario)
 
-    def test_rejects_short_or_reused_encryption_keys(self):
+    def test_rejects_non_32_byte_or_reused_encryption_keys(self):
         scenario = copy.deepcopy(self.scenario)
         scenario['fields'][0]['encryption_key'] = 'too-short'
-        with self.assertRaisesRegex(ScenarioSchemaValidationError, 'is too short'):
+        with self.assertRaisesRegex(ScenarioSchemaValidationError, 'encryption_key'):
+            validate_scenario(scenario)
+
+        scenario = copy.deepcopy(self.scenario)
+        scenario['fields'][0]['encryption_key'] = 'a' * 65
+        with self.assertRaisesRegex(ScenarioSchemaValidationError, 'encryption_key'):
             validate_scenario(scenario)
 
         scenario = copy.deepcopy(self.scenario)

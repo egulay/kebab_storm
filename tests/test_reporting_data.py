@@ -6,13 +6,13 @@ from util.crypto.crypto_action import CryptoAction
 
 
 class ReportingDataTest(unittest.TestCase):
-    @patch('etl.importer.hdfs_path_exist', return_value=False)
+    @patch('etl.importer.filesystem_path_exists', return_value=False)
     @patch('etl.importer.get_scenario_defaults')
     def test_cross_year_range_without_storage_returns_consistent_empty_result(
-            self, get_scenario_defaults, _hdfs_path_exist):
+            self, get_scenario_defaults, _filesystem_path_exists):
         get_scenario_defaults.return_value = (
             'PersonalHealthRecords', '/health', '/tmp/health', 'append',
-            'Patient_Record_ID', ',', 3, True, True, '/health_reports',
+            'Patient_Record_ID', ',', 3, True, True, '/health_reports', False,
         )
         empty_data = Mock()
         spark = Mock()

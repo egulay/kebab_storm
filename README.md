@@ -25,6 +25,25 @@ part of a production service when the surrounding platform supplies secure ident
 auditing, monitoring, recovery, and restricted access to the Spark runtime. Those controls are deployment
 responsibilities and are intentionally outside this project.
 
+### Encryption Format
+
+Encrypted scenario fields use **AES-256-GCM**, an authenticated-encryption mode that provides confidentiality and
+detects accidental or malicious ciphertext modification. AES-256 is often marketed as “military-grade” encryption;
+the precise and more useful claim here is that Kebab Storm uses a 256-bit AES key with GCM authentication. Overall
+security still depends on key protection, operating-system controls, Spark-runtime access, configuration, and sound
+operations—not the cipher name alone.
+
+Ciphertext is stored directly in Spark `BinaryType` columns rather than encoded as Base64 text. Each value has a
+versioned binary envelope containing a format byte, a fresh 12-byte GCM nonce, a 16-byte authentication tag, and the
+ciphertext. Re-encrypting the same value therefore produces different bytes. Authentication failure prevents altered
+or incorrectly keyed values from being silently decrypted.
+
+Every encrypted field requires its own unique 256-bit random key, represented in scenario JSON as exactly 64
+hexadecimal characters. This encoding represents 32 random bytes without reducing their entropy. Scenario validation
+rejects malformed, shorter, longer, or reused keys. In a service deployment these keys should be delivered through the
+protected scenario/Vault path described below. The AES-256-GCM binary format is not compatible with the former
+AES-128-CBC/Base64 format; data written by the former implementation must be removed and imported again.
+
 ### Service Deployment Architecture
 
 Kebab Storm can run as a controlled Spark service in a Hadoop or Cloudera environment. Apache Airflow, Apache NiFi,
@@ -193,6 +212,26 @@ Iceberg hard deletion removes rows from the current snapshot. The platform reten
 snapshots and remove orphan files when physical removal is required; otherwise older snapshots may continue to
 reference deleted encrypted records.
 
+### Source Filesystems and Input Cleanup
+
+Spark can read input paths from the local filesystem, HDFS, S3-compatible storage through `s3a://`, and Apache Ozone
+through `ofs://` or `o3fs://`. The corresponding Hadoop filesystem connector, credentials, endpoint, and cluster
+configuration must be supplied to Spark by the deployment environment.
+
+A scenario can request removal of its source path after the encrypted storage write completes successfully:
+
+```json
+"delete_input_file_after_import": false
+```
+
+Keep this `false` by default. Set it to `true` only for extremely sensitive input data in a controlled ingestion
+location where permanent source removal is required by the applicable retention policy. The importer deletes the exact
+CSV file through the Hadoop filesystem API; directories and glob paths are not accepted for deletion. A failed read,
+validation, encryption, or destination write leaves the input untouched. On versioned or snapshot-enabled object
+stores, deletion may create a delete marker or remove only the current view, so lifecycle and retention policies remain
+the platform administrator's responsibility. This option cannot be combined with `import_mode: "ignore"`, because an
+existing destination may cause Spark to skip the write rather than import the source file.
+
 ## Features
 Executor scripts are located in [/etl/executor/](https://github.com/egulay/kebab_storm/tree/master/etl/executor) directory with the features below:
 * [Encrypt & Import](https://github.com/egulay/kebab_storm/blob/master/etl/executor/import.py)
@@ -249,6 +288,7 @@ and `timestamp|%m/%d/%Y|%Y-%m-%d` are interpreted as string-to-target conversion
   "report_save_location": "/Sales_Reports",
   "temp_save_location": "/Users/emregulay/tmp/Sales",
   "import_mode": "append",
+  "delete_input_file_after_import": false,
   "id_field": "Order_ID",
   "delimiter": ",",
   "hard_delete_condition_in_years": 3,
@@ -259,21 +299,21 @@ and `timestamp|%m/%d/%Y|%Y-%m-%d` are interpreted as string-to-target conversion
       "name": "Region",
       "map_as": "REGION",
       "type": "string|string",
-      "encryption_key": "6tzm3NpUfDgnz7SBvLXKJVFvHGnp7q",
+      "encryption_key": "271757a442fd5ded08b42f3bfa99ce8ba6527d94e944092e95398842841b3d6d",
       "is_encrypted": true
     },
     {
       "name": "Country",
       "map_as": "COUNTRY",
       "type": "string|string",
-      "encryption_key": "Y8RCFHrTv5GbPCEA4zp65M5BYfWfqk",
+      "encryption_key": "9d861f1293a83372a984126dcf57c5ffd1ed2f474e72383057894c68cc77e82a",
       "is_encrypted": true
     },
     {
       "name": "Item_Type",
       "map_as": "ITEMTYPE",
       "type": "string|string",
-      "encryption_key": "M6NgJPgfJ3xzkjsP5eMHzUJpjXSspE",
+      "encryption_key": "07e9dcf3db0a3a8998f291b033516b6687c625d848a1746ead5736cf9fa61d54",
       "is_encrypted": true
     },
     {
@@ -294,28 +334,28 @@ and `timestamp|%m/%d/%Y|%Y-%m-%d` are interpreted as string-to-target conversion
       "name": "Order_Date",
       "map_as": "ORDERDATE",
       "type": "string|timestamp|source_format=%m/%d/%Y",
-      "encryption_key": "PYHW7Nqtu7SNUcvXWZgadKqH2EQ7tGj8",
+      "encryption_key": "1d720486235fe4346e1c56f91ddfb9283050e9ceefa3488c66040b016997ed04",
       "is_encrypted": true
     },
     {
       "name": "Order_ID",
       "map_as": "ORDERID",
       "type": "string|integer",
-      "encryption_key": "n8ZddZeeLfA2qmpRMkXZ7unmdWqUMLmx",
+      "encryption_key": "b46b6cf63d7b24517ac76df54d41f8268a70f2c3bd3160df222076b8cb968ba4",
       "is_encrypted": true
     },
     {
       "name": "Ship_Date",
       "map_as": "SHIPDATE",
       "type": "string|timestamp|source_format=%m/%d/%Y",
-      "encryption_key": "nLp8pXzWHpbKyAtn45HN7FGrdRM9jTf7",
+      "encryption_key": "ddeff9673e9c58469426c764bef228a4170ee1ea767e6933e35725da58b41478",
       "is_encrypted": true
     },
     {
       "name": "Units_Sold",
       "map_as": "UNITSOLD",
       "type": "string|integer",
-      "encryption_key": "CGvFGagy3qDham7W8gwjPzVaBtcf5EPc",
+      "encryption_key": "91e5cbe97d1d36f3185f73e519b84bb1b67bb0f8ad509713249dfacabe59f244",
       "is_encrypted": true
     },
     {
@@ -329,28 +369,28 @@ and `timestamp|%m/%d/%Y|%Y-%m-%d` are interpreted as string-to-target conversion
       "name": "Unit_Cost",
       "map_as": "UNITCOST",
       "type": "string|double",
-      "encryption_key": "egR6r5UKNj4URcM4Af2YMYC9QXyzw2dP",
+      "encryption_key": "dda0f3de76ea16273b64b87c05e279a237ab12edaa0ef977ac407e7a70acccc1",
       "is_encrypted": true
     },
     {
       "name": "Total_Revenue",
       "map_as": "TOTALREVENUE",
       "type": "string|double",
-      "encryption_key": "JpM2qSZH2u5JmCaqY7WnMmjN4vrKHtff",
+      "encryption_key": "dfa290847a65690752f0e9983dbdaba7a369ef02dd28bacaea1e3bc649fe7876",
       "is_encrypted": true
     },
     {
       "name": "Total_Cost",
       "map_as": "TOTALCOST",
       "type": "string|double",
-      "encryption_key": "W57xBz8DgZte8CpPpHMu2NN2uEyGzAfd",
+      "encryption_key": "087117eff5071aff926e8378d2267c315b687b5a1c709eb5b68b04ae7d31ef95",
       "is_encrypted": true
     },
     {
       "name": "Total_Profit",
       "map_as": "TOTALPROFIT",
       "type": "string|double",
-      "encryption_key": "3t2NqvPThFZRhQyguqPYcruREKCjqYfJ",
+      "encryption_key": "fca2c98e20ba07e2f1f379430b4d74b533811d4c6978bae9e5d028bcf9accbf4",
       "is_encrypted": true
     }
   ]
@@ -448,8 +488,8 @@ usage: import.py [-h] --scenario /path/to/scenario.json OR
                  https://domain.com/scenario-id --input-file
                  /path/to/input_file.csv --date 2020-01-01
 
-KebabStorm: A Spark driver for to demonstrate how to apply cryptography (with
-AES) on UDF level with data quality checks based on ETL scenarios in JSON
+Kebab Storm: A Spark driver demonstrating how to apply cryptography (with
+AES-256-GCM) on UDF level with data quality checks based on ETL scenarios in JSON
 format
 
 optional arguments:
@@ -461,9 +501,14 @@ required arguments:
   --input-file /path/to/input_file.csv, -if /path/to/input_file.csv
                         File to import
   --date 2020-01-01, -d 2020-01-01
-                        Import date in YYYY-mm-dd format
+                        Import date in YYYY-MM-DD format
 ```
 #### Encrypt & Import
+
+The console transcripts below are retained as historical sales demonstrations. Spark versions, timestamps, conversion
+warnings, and ciphertext bytes vary in current runs. AES-256-GCM payloads now begin with the `01` format-version byte
+and are not Base64 encoded.
+
 ```sh
 import.py --scenario ../../scenario/sales_records_scenario.json --input-file ../../data/50k_sales_records_corrupted.csv --date 2020-02-23
 ```

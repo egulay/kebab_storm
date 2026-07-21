@@ -26,12 +26,10 @@ def execute_crypto_action(source: DataFrame, scenario_json_path, action: CryptoA
         result = reduce(lambda x_df, col_name: x_df.withColumn(col_name, generic_encrypt_udf(
             func.struct(col_name, func.lit(col_name), func.lit(json.dumps(scenario)))).cast(BinaryType())),
                         columns_to_encrypt, source)
-        del scenario
         return result
 
     result = reduce(lambda x_df, col_name: x_df.withColumn(col_name, generic_decrypt_udf(
         func.struct(col_name, func.lit(col_name), func.lit(json.dumps(scenario)))).cast(
         generic_cast_map_as(scenario, col_name))), columns_to_encrypt, source)
 
-    del scenario
     return result

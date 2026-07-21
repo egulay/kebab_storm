@@ -14,7 +14,7 @@ from util.constants import DATE_IMPORTED_FIELD_NAME, DAY_PARTITION_FIELD_NAME, F
     SCENARIO_IMPORT_SAVE_LOCATION, SCENARIO_DELIMITER, \
     SCENARIO_ENTITY_NAME, SCENARIO_ID_FIELD, SCENARIO_TEMP_SAVE_LOCATION, SCENARIO_IMPORT_MODE, \
     SCENARIO_HARD_DELETE_CONDITION_IN_YEARS, SCENARIO_ENFORCE_DATA_MODEL, SCENARIO_IS_APPLY_YEAR_TO_SAVE_LOCATION, \
-    SCENARIO_REPORT_SAVE_LOCATION
+    SCENARIO_REPORT_SAVE_LOCATION, SCENARIO_DELETE_INPUT_FILE_AFTER_IMPORT
 
 
 SCENARIO_SCHEMA_PATH = (
@@ -34,10 +34,7 @@ def get_missing_fields(scenario_json_path, target: DataFrame):
     target_fields = target.schema.names
     scenario_fields = find_fields(scenario)
 
-    result = [field for field in scenario_fields if field not in set(target_fields)]
-
-    del scenario
-    return result
+    return [field for field in scenario_fields if field not in set(target_fields)]
 
 
 def get_unexpected_fields(scenario_json_path, target: DataFrame):
@@ -59,8 +56,8 @@ def get_scenario_defaults(scenario_json_path):
     enforce_data_model = get_enforce_data_model(scenario)
     is_apply_year_to_save_location = get_is_apply_year_to_save_location(scenario)
     report_save_location = get_report_save_location(scenario)
+    delete_input_file_after_import = get_delete_input_file_after_import(scenario)
 
-    del scenario
     return name, \
            import_save_location, \
            temp_save_location, \
@@ -70,7 +67,8 @@ def get_scenario_defaults(scenario_json_path):
            hard_delete_in_years, \
            enforce_data_model, \
            is_apply_year_to_save_location, \
-           report_save_location
+           report_save_location, \
+           delete_input_file_after_import
 
 
 def load_scenario(path):
@@ -120,13 +118,15 @@ def validate_scenario(scenario):
         SCENARIO_DELIMITER, SCENARIO_ENFORCE_DATA_MODEL, SCENARIO_ENTITY_NAME,
         SCENARIO_HARD_DELETE_CONDITION_IN_YEARS, SCENARIO_ID_FIELD, SCENARIO_IMPORT_MODE,
         SCENARIO_IMPORT_SAVE_LOCATION, SCENARIO_IS_APPLY_YEAR_TO_SAVE_LOCATION,
-        SCENARIO_REPORT_SAVE_LOCATION, SCENARIO_TEMP_SAVE_LOCATION, FIELDS,
+        SCENARIO_REPORT_SAVE_LOCATION, SCENARIO_TEMP_SAVE_LOCATION,
+        SCENARIO_DELETE_INPUT_FILE_AFTER_IMPORT, FIELDS,
     )
     missing_keys = [key for key in required_scenario_keys if key not in scenario]
     if missing_keys:
         raise ValueError(f'Scenario is missing required setting(s): {", ".join(missing_keys)}')
 
-    for boolean_setting in (SCENARIO_ENFORCE_DATA_MODEL, SCENARIO_IS_APPLY_YEAR_TO_SAVE_LOCATION):
+    for boolean_setting in (SCENARIO_ENFORCE_DATA_MODEL, SCENARIO_IS_APPLY_YEAR_TO_SAVE_LOCATION,
+                            SCENARIO_DELETE_INPUT_FILE_AFTER_IMPORT):
         if not isinstance(scenario[boolean_setting], bool):
             raise ValueError(f'Scenario setting {boolean_setting} must be a boolean')
 
@@ -136,6 +136,11 @@ def validate_scenario(scenario):
 
     if scenario[SCENARIO_IMPORT_MODE] not in ('append', 'overwrite', 'ignore', 'errorifexists'):
         raise ValueError(f'Unsupported import mode: {scenario[SCENARIO_IMPORT_MODE]}')
+    if scenario[SCENARIO_DELETE_INPUT_FILE_AFTER_IMPORT] and scenario[SCENARIO_IMPORT_MODE] == 'ignore':
+        raise ValueError(
+            f'{SCENARIO_DELETE_INPUT_FILE_AFTER_IMPORT} cannot be true when import_mode is ignore because '
+            'an existing destination may cause the input file to be skipped rather than imported'
+        )
 
     fields = scenario.get(FIELDS)
     if not isinstance(fields, list) or not fields:
@@ -165,8 +170,13 @@ def validate_scenario(scenario):
             encryption_key = str(field.get(FIELD_ENCRYPTION_KEY, '')).strip()
             if not encryption_key:
                 raise ValueError(f'Encrypted field {source_name} requires an encryption key')
-            if len(encryption_key) < 16:
-                raise ValueError(f'Encryption key for {source_name} must be at least 16 characters')
+            try:
+                key_bytes = bytes.fromhex(encryption_key)
+            except ValueError as error:
+                raise ValueError(
+                    f'Encryption key for {source_name} must contain exactly 64 hexadecimal characters') from error
+            if len(encryption_key) != 64 or len(key_bytes) != 32:
+                raise ValueError(f'Encryption key for {source_name} must contain exactly 64 hexadecimal characters')
             encrypted_keys.append(encryption_key)
 
         source_names.append(source_name)
@@ -225,6 +235,10 @@ def get_import_mode(scenario_json):
     return scenario_json[SCENARIO_IMPORT_MODE]
 
 
+def get_delete_input_file_after_import(scenario_json):
+    return bool(scenario_json[SCENARIO_DELETE_INPUT_FILE_AFTER_IMPORT])
+
+
 def get_entity_name(scenario_json):
     return scenario_json[SCENARIO_ENTITY_NAME]
 
@@ -238,72 +252,32 @@ def get_temp_save_location(scenario_json):
 
 
 def find_field(scenario_json, field_name):
-    result = [field for field in scenario_json if field[FIELD_NAME] == field_name][0]
-    del scenario_json
-    return result
+    return [field for field in scenario_json if field[FIELD_NAME] == field_name][0]
 
 
 def find_field_map_as(scenario_json, field_name_map_as):
-    result = [field for field in scenario_json if field[FIELD_MAP_AS] == field_name_map_as][0]
-    del scenario_json
-    return result
-
-
-def find_timestamp_fields(scenario_json):
-    result = [field[FIELD_NAME] for field in scenario_json[FIELDS] if str(field[FIELD_TYPE]).startswith('timestamp')]
-    del scenario_json
-    return result
+    return [field for field in scenario_json if field[FIELD_MAP_AS] == field_name_map_as][0]
 
 
 def find_field_is_encrypted(scenario_json, field_name):
-    result = bool(find_field(scenario_json[FIELDS], field_name)[FIELD_IS_ENCRYPTED])
-    del scenario_json
-    return result
+    return bool(find_field(scenario_json[FIELDS], field_name)[FIELD_IS_ENCRYPTED])
 
 
 def find_encryption_key(scenario_json, field_name):
-    result = find_field_map_as(scenario_json[FIELDS], field_name)[FIELD_ENCRYPTION_KEY]
-    del scenario_json
-    return result
+    return find_field_map_as(scenario_json[FIELDS], field_name)[FIELD_ENCRYPTION_KEY]
 
 
 def find_mapped_as_value(scenario_json, field_name):
-    result = find_field(scenario_json[FIELDS], field_name)[FIELD_MAP_AS]
-    del scenario_json
-    return result
-
-
-def find_field_type(scenario_json, field_name):
-    result = find_field(scenario_json[FIELDS], field_name)[FIELD_TYPE]
-    del scenario_json
-    return result
+    return find_field(scenario_json[FIELDS], field_name)[FIELD_MAP_AS]
 
 
 def find_field_type_map_as(scenario_json, field_name):
-    result = find_field_map_as(scenario_json[FIELDS], field_name)[FIELD_TYPE]
-    del scenario_json
-    return result
-
-
-def find_encrypted_fields(scenario_json):
-    result = [field[FIELD_NAME] for field in scenario_json[FIELDS] if bool(field[FIELD_IS_ENCRYPTED])]
-    del scenario_json
-    return result
+    return find_field_map_as(scenario_json[FIELDS], field_name)[FIELD_TYPE]
 
 
 def find_encrypted_fields_map_as(scenario_json):
-    result = [field[FIELD_MAP_AS] for field in scenario_json[FIELDS] if bool(field[FIELD_IS_ENCRYPTED])]
-    del scenario_json
-    return result
+    return [field[FIELD_MAP_AS] for field in scenario_json[FIELDS] if bool(field[FIELD_IS_ENCRYPTED])]
 
 
 def find_fields(scenario_json):
-    result = [field[FIELD_NAME] for field in scenario_json[FIELDS]]
-    del scenario_json
-    return result
-
-
-def find_fields_map_as(scenario_json):
-    result = [field[FIELD_MAP_AS] for field in scenario_json[FIELDS]]
-    del scenario_json
-    return result
+    return [field[FIELD_NAME] for field in scenario_json[FIELDS]]

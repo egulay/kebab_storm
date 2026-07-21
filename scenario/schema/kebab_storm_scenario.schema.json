@@ -11,6 +11,7 @@
     "report_save_location",
     "temp_save_location",
     "import_mode",
+    "delete_input_file_after_import",
     "id_field",
     "delimiter",
     "hard_delete_condition_in_years",
@@ -38,6 +39,10 @@
         "ignore",
         "errorifexists"
       ]
+    },
+    "delete_input_file_after_import": {
+      "type": "boolean",
+      "description": "Delete the source CSV file only after the encrypted import write completes successfully. Keep false by default and enable only for extremely sensitive input data under controlled retention policies."
     },
     "id_field": {
       "$ref": "#/$defs/nonBlankString"
@@ -111,7 +116,9 @@
           "then": {
             "properties": {
               "encryption_key": {
-                "minLength": 16
+                "minLength": 64,
+                "maxLength": 64,
+                "pattern": "^[A-Fa-f0-9]{64}$"
               }
             }
           }

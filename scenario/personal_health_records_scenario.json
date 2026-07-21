@@ -4,6 +4,7 @@
   "report_save_location": "/Personal_Health_Record_Reports",
   "temp_save_location": "/Users/emregulay/tmp/PersonalHealthRecords",
   "import_mode": "append",
+  "delete_input_file_after_import": false,
   "id_field": "Patient_Record_ID",
   "delimiter": ",",
   "hard_delete_condition_in_years": 3,
@@ -14,21 +15,21 @@
       "name": "Patient_Record_ID",
       "map_as": "PATIENT_RECORD_ID",
       "type": "string|string",
-      "encryption_key": "xA2oJw_uzb7RYuqd2G6XuKsLxVFeNzZh",
+      "encryption_key": "695ce4e8b79ad35a67c498eaee713cc15536f54f0b195128d7b9a8518e2d548b",
       "is_encrypted": true
     },
     {
       "name": "Patient_Name",
       "map_as": "PATIENT_NAME",
       "type": "string|string",
-      "encryption_key": "AEl6tZmvfhHCdkdsTFRhgCcdmdwVM2HL",
+      "encryption_key": "ac92fbf73867d9266ccde36538ec85e034c3034c8af5ac14140133be4d215eec",
       "is_encrypted": true
     },
     {
       "name": "Biological_Sex",
       "map_as": "BIOLOGICAL_SEX",
       "type": "string|string",
-      "encryption_key": "NqQ_uQX0CpWUQdNs0N_lEib_eCd0cZ4E",
+      "encryption_key": "bc39c8046e138dfde956ca24fbbc91bd5ea358de8a787e6030e9dff7006d57ff",
       "is_encrypted": true
     },
     {
@@ -56,7 +57,7 @@
       "name": "Height_CM_Text",
       "map_as": "HEIGHT_CM",
       "type": "string|decimal(5,2)",
-      "encryption_key": "n945QYfK1ituqm_gmste-UHnS6kMgaYE",
+      "encryption_key": "f1272c50330a0473482e3aecba731014abec9ffd839d08bd2962568bd7b5ef1b",
       "is_encrypted": true
     },
     {
@@ -98,7 +99,7 @@
       "name": "Glucose_Level_Text",
       "map_as": "GLUCOSE_LEVEL",
       "type": "string|float",
-      "encryption_key": "n3RMDqSDmqmMJBoRhm-wkDL8xGcVEfx1",
+      "encryption_key": "a165ae0885187839d6633e8c01cb4f53a8066d4b90d9ef932287a86817cbdbc0",
       "is_encrypted": true
     },
     {
@@ -119,14 +120,14 @@
       "name": "Insurance_Number",
       "map_as": "INSURANCE_NUMBER_TEXT",
       "type": "long|string",
-      "encryption_key": "s136w4A-nFjOi0x03pbYBY8ZQKyZey4-",
+      "encryption_key": "9ab6d4c8d75340bde684446fe014c83a13575bcda0a3a7cea166fc25d052eb27",
       "is_encrypted": true
     },
     {
       "name": "Birth_Date",
       "map_as": "BIRTH_DATE",
       "type": "string|date|source_format=%m/%d/%Y",
-      "encryption_key": "uDODJ6WQpP6UdJxFD9Pv2uS7zt-J5KWG",
+      "encryption_key": "5098c4cc817289822ae29a692e9bcd0adad3a06615cfd539c5dd9e689bfd823e",
       "is_encrypted": true
     },
     {
@@ -140,7 +141,7 @@
       "name": "Appointment_Epoch_MS",
       "map_as": "APPOINTMENT_AT",
       "type": "long|timestamp|epoch_unit=milliseconds",
-      "encryption_key": "OsdAsO-Rlsmjup7QGUD57Nqzi8ZSVA23",
+      "encryption_key": "7ffc8dd1092d10974b3b395a5db1a6e8fd2bf5ec4471b2be44e2a5512a292b55",
       "is_encrypted": true
     },
     {
@@ -154,7 +155,7 @@
       "name": "Record_Created",
       "map_as": "RECORD_CREATED_AT",
       "type": "string|timestamp|source_format=%d-%m-%Y %H:%M:%S",
-      "encryption_key": "C3HbU8-_KJszBYtOFvBH4qreYzoc-KOE",
+      "encryption_key": "420c03371741027627d427cd70965201732ef2d52abadf214ce0bb2bffe52b89",
       "is_encrypted": true
     },
     {
@@ -189,14 +190,14 @@
       "name": "Blood_Type",
       "map_as": "BLOOD_TYPE",
       "type": "string|string",
-      "encryption_key": "ZfRlCIDoM9LMPz6LlurTGRu88YWAXFND",
+      "encryption_key": "53aa6aef409460333827866c7bf0e9c415893aefea4709db5345ee806423649b",
       "is_encrypted": true
     },
     {
       "name": "Diagnosis_Code",
       "map_as": "DIAGNOSIS_CODE",
       "type": "string|string",
-      "encryption_key": "UIhjyYeI5eb9rlCGSjgxpxiZkpHfu0ql",
+      "encryption_key": "f69c1a737c211dc3a6e46f7bed0c84d4dd26bef5a70bb7d53efc01cf88ce63cf",
       "is_encrypted": true
     }
   ]

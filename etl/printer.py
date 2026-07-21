@@ -3,13 +3,12 @@ from datetime import datetime
 
 from pyspark.sql import DataFrame, SparkSession, functions as func
 
-from conf import settings
 from etl.crypter import execute_crypto_action
 from etl.refiner import validate_and_refine
 from util.constants import DATE_IMPORTED_FIELD_NAME, DAY_PARTITION_FIELD_NAME, SOFT_DELETED_FIELD_NAME
 from util.crypto.crypto_action import CryptoAction
 from util.etl_util import get_day_partition_name_and_year
-from util.parquet_util import read_spark_parquet, hdfs_get_folder_names
+from util.parquet_util import read_spark_parquet, filesystem_get_partitioned_folder_paths
 from util.scenario_util import get_scenario_defaults, get_missing_fields, get_unexpected_fields
 from util.storage_util import is_iceberg_storage, read_storage
 from util.type_checkers import is_not_blank
@@ -19,7 +18,7 @@ logger = logging.getLogger(__name__)
 
 def print_report_data(spark_session: SparkSession, scenario_json_path: str, report_name: str, day):
     name, import_save_location, temp_save_location, import_mode, id_field_name, delimiter, hard_delete_in_years, \
-        enforce_data_model, is_apply_year_to_save_location, report_save_location = \
+        enforce_data_model, is_apply_year_to_save_location, report_save_location, _ = \
         get_scenario_defaults(scenario_json_path)
 
     partition_name, year = get_day_partition_name_and_year(day)
@@ -47,7 +46,7 @@ def print_report_data(spark_session: SparkSession, scenario_json_path: str, repo
 
 def print_imported_data(spark_session: SparkSession, scenario_json_path: str, crypto_action: str, day):
     name, import_save_location, temp_save_location, import_mode, id_field_name, delimiter, hard_delete_in_years, \
-        enforce_data_model, is_apply_year_to_save_location, report_save_location = \
+        enforce_data_model, is_apply_year_to_save_location, report_save_location, _ = \
         get_scenario_defaults(scenario_json_path)
 
     partition_name, year = get_day_partition_name_and_year(day)
@@ -76,7 +75,7 @@ def print_imported_data(spark_session: SparkSession, scenario_json_path: str, cr
 
 def print_soft_deleted(spark_session: SparkSession, scenario_json_path: str, crypto_action: str):
     name, import_save_location, temp_save_location, import_mode, id_field_name, delimiter, hard_delete_in_years, \
-        enforce_data_model, is_apply_year_to_save_location, report_save_location = \
+        enforce_data_model, is_apply_year_to_save_location, report_save_location, _ = \
         get_scenario_defaults(scenario_json_path)
 
     logger.info(f'Active action: Print soft-deleted data for {name} entity defined in {scenario_json_path}')
@@ -87,13 +86,13 @@ def print_soft_deleted(spark_session: SparkSession, scenario_json_path: str, cry
     elif not is_apply_year_to_save_location:
         data = read_spark_parquet(spark_session, import_save_location)
     else:
-        for directory in hdfs_get_folder_names(spark_session, import_save_location):
+        for folder_path in filesystem_get_partitioned_folder_paths(spark_session, import_save_location):
             if data is not None and not data.isEmpty():
-                u_data = read_spark_parquet(spark_session, f'{settings.default_data_location}/{directory}')
+                u_data = read_spark_parquet(spark_session, folder_path)
                 if not u_data.isEmpty():
                     data = data.union(u_data)
             else:
-                data = read_spark_parquet(spark_session, f'{settings.default_data_location}/{directory}')
+                data = read_spark_parquet(spark_session, folder_path)
 
     if data is not None and not data.isEmpty():
         data = data.where(f'{SOFT_DELETED_FIELD_NAME} IS NOT NULL')
@@ -124,7 +123,7 @@ def print_data_frame_with_schema(source: DataFrame):
 
 def print_refined_data_with_schema(spark_session: SparkSession, scenario_json_path, source_file):
     name, import_save_location, temp_save_location, import_mode, id_field_name, delimiter, hard_delete_in_years, \
-        enforce_data_model, is_apply_year_to_save_location, report_save_location = \
+        enforce_data_model, is_apply_year_to_save_location, report_save_location, _ = \
         get_scenario_defaults(scenario_json_path)
 
     if is_not_blank(source_file) and source_file.endswith('.csv'):

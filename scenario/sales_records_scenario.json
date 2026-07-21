@@ -4,6 +4,7 @@
   "report_save_location": "/Sales_Reports",
   "temp_save_location": "/Users/emregulay/tmp/Sales",
   "import_mode": "append",
+  "delete_input_file_after_import": false,
   "id_field": "Order_ID",
   "delimiter": ",",
   "hard_delete_condition_in_years": 3,
@@ -14,21 +15,21 @@
       "name": "Region",
       "map_as": "REGION",
       "type": "string|string",
-      "encryption_key": "6tzm3NpUfDgnz7SBvLXKJVFvHGnp7q",
+      "encryption_key": "271757a442fd5ded08b42f3bfa99ce8ba6527d94e944092e95398842841b3d6d",
       "is_encrypted": true
     },
     {
       "name": "Country",
       "map_as": "COUNTRY",
       "type": "string|string",
-      "encryption_key": "Y8RCFHrTv5GbPCEA4zp65M5BYfWfqk",
+      "encryption_key": "9d861f1293a83372a984126dcf57c5ffd1ed2f474e72383057894c68cc77e82a",
       "is_encrypted": true
     },
     {
       "name": "Item_Type",
       "map_as": "ITEMTYPE",
       "type": "string|string",
-      "encryption_key": "M6NgJPgfJ3xzkjsP5eMHzUJpjXSspE",
+      "encryption_key": "07e9dcf3db0a3a8998f291b033516b6687c625d848a1746ead5736cf9fa61d54",
       "is_encrypted": true
     },
     {
@@ -49,28 +50,28 @@
       "name": "Order_Date",
       "map_as": "ORDERDATE",
       "type": "string|timestamp|source_format=%m/%d/%Y",
-      "encryption_key": "PYHW7Nqtu7SNUcvXWZgadKqH2EQ7tGj8",
+      "encryption_key": "1d720486235fe4346e1c56f91ddfb9283050e9ceefa3488c66040b016997ed04",
       "is_encrypted": true
     },
     {
       "name": "Order_ID",
       "map_as": "ORDERID",
       "type": "string|integer",
-      "encryption_key": "n8ZddZeeLfA2qmpRMkXZ7unmdWqUMLmx",
+      "encryption_key": "b46b6cf63d7b24517ac76df54d41f8268a70f2c3bd3160df222076b8cb968ba4",
       "is_encrypted": true
     },
     {
       "name": "Ship_Date",
       "map_as": "SHIPDATE",
       "type": "string|timestamp|source_format=%m/%d/%Y",
-      "encryption_key": "nLp8pXzWHpbKyAtn45HN7FGrdRM9jTf7",
+      "encryption_key": "ddeff9673e9c58469426c764bef228a4170ee1ea767e6933e35725da58b41478",
       "is_encrypted": true
     },
     {
       "name": "Units_Sold",
       "map_as": "UNITSOLD",
       "type": "string|integer",
-      "encryption_key": "CGvFGagy3qDham7W8gwjPzVaBtcf5EPc",
+      "encryption_key": "91e5cbe97d1d36f3185f73e519b84bb1b67bb0f8ad509713249dfacabe59f244",
       "is_encrypted": true
     },
     {
@@ -84,28 +85,28 @@
       "name": "Unit_Cost",
       "map_as": "UNITCOST",
       "type": "string|double",
-      "encryption_key": "egR6r5UKNj4URcM4Af2YMYC9QXyzw2dP",
+      "encryption_key": "dda0f3de76ea16273b64b87c05e279a237ab12edaa0ef977ac407e7a70acccc1",
       "is_encrypted": true
     },
     {
       "name": "Total_Revenue",
       "map_as": "TOTALREVENUE",
       "type": "string|double",
-      "encryption_key": "JpM2qSZH2u5JmCaqY7WnMmjN4vrKHtff",
+      "encryption_key": "dfa290847a65690752f0e9983dbdaba7a369ef02dd28bacaea1e3bc649fe7876",
       "is_encrypted": true
     },
     {
       "name": "Total_Cost",
       "map_as": "TOTALCOST",
       "type": "string|double",
-      "encryption_key": "W57xBz8DgZte8CpPpHMu2NN2uEyGzAfd",
+      "encryption_key": "087117eff5071aff926e8378d2267c315b687b5a1c709eb5b68b04ae7d31ef95",
       "is_encrypted": true
     },
     {
       "name": "Total_Profit",
       "map_as": "TOTALPROFIT",
       "type": "string|double",
-      "encryption_key": "3t2NqvPThFZRhQyguqPYcruREKCjqYfJ",
+      "encryption_key": "fca2c98e20ba07e2f1f379430b4d74b533811d4c6978bae9e5d028bcf9accbf4",
       "is_encrypted": true
     }
   ]

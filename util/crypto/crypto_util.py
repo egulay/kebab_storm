@@ -20,7 +20,7 @@ def generic_encrypt(raw: str, column_name: str, scenario_json):
     return encrypt(find_encryption_key(json.loads(scenario_json), column_name), raw)
 
 
-def generic_decrypt(enc: str, column_name: str, scenario_json):
+def generic_decrypt(enc: bytes, column_name: str, scenario_json):
     if enc is None:
         return None
 

@@ -106,7 +106,8 @@ class NativeConversionTest(unittest.TestCase):
                 'name': 'Secret',
                 'map_as': 'SECRET',
                 'type': 'string|integer',
-                'encryption_key': '0123456789abcdef0123456789abcdef',
+                'encryption_key':
+                    '0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef',
                 'is_encrypted': True,
             }]
         }

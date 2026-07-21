@@ -27,7 +27,7 @@ def main():
 
 
 def set_args():
-    parser = argparse.ArgumentParser(description='KebabStorm: A Spark driver for to demonstrate how to apply '
+    parser = argparse.ArgumentParser(description='Kebab Storm: A Spark driver demonstrating how to apply '
                                                  'cryptography (with AES) on UDF level with data quality checks based '
                                                  'on ETL scenarios in JSON format')
     required_arguments = parser.add_argument_group('required arguments')

@@ -6,7 +6,6 @@ from dateutil.relativedelta import relativedelta
 from pyspark.sql import functions as func, SparkSession
 from pyspark.sql.types import BinaryType, TimestampType, StructType, StructField, StringType
 
-from conf import settings
 from etl.crypter import execute_crypto_action
 from etl.refiner import validate_and_refine
 from util.constants import DAY_PARTITION_FIELD_NAME, DATE_IMPORTED_FIELD_NAME, SOFT_DELETED_FIELD_NAME, \
@@ -16,7 +15,8 @@ from util.crypto.crypto_util import generic_decrypt_udf, generic_encrypt_udf
 from util.etl_util import generic_cast_map_as, generic_soft_delete_udf, get_day_partition_name_and_year
 from util.parquet_save_mode import ParquetSaveMode
 from util.parquet_util import write_spark_parquet, read_spark_parquet, \
-    hdfs_delete, hdfs_get_folder_names, hdfs_get_folder_years_less_than, read_spark_parquets_by_dates, hdfs_path_exist
+    filesystem_delete, filesystem_get_partitioned_folder_paths, filesystem_get_folder_years_less_than, \
+    read_spark_parquets_by_dates, filesystem_path_exists, delete_input_file
 from util.scenario_util import get_scenario_defaults, get_missing_fields, get_unexpected_fields, find_mapped_as_value, \
     load_scenario, find_field_is_encrypted
 from util.storage_util import is_iceberg_storage, read_storage, read_storage_by_dates, replace_storage, \
@@ -29,7 +29,7 @@ def get_reporting_data_between_dates(spark_session: SparkSession, scenario_json_
                                      crypto_action: CryptoAction,
                                      include_soft_deleted: bool, start_date, end_date):
     name, import_save_location, temp_save_location, import_mode, id_field_name, delimiter, hard_delete_in_years, \
-        enforce_data_model, is_apply_year_to_save_location, report_save_location = \
+        enforce_data_model, is_apply_year_to_save_location, report_save_location, _ = \
         get_scenario_defaults(scenario_json_path)
 
     partition_name_start, year_start = get_day_partition_name_and_year(start_date)
@@ -45,7 +45,7 @@ def get_reporting_data_between_dates(spark_session: SparkSession, scenario_json_
     elif is_apply_year_to_save_location:
         if year_start != year_end:
             locations = [f'{import_save_location}_{year}' for year in range(year_start, year_end + 1)
-                         if hdfs_path_exist(spark_session, f'{import_save_location}_{year}')]
+                         if filesystem_path_exists(spark_session, f'{import_save_location}_{year}')]
             if not locations:
                 empty_data = spark_session.createDataFrame(
                     [], StructType([StructField("no data", StringType(), True)]))
@@ -78,7 +78,7 @@ def get_reporting_data(spark_session: SparkSession, scenario_json_path: str,
                        crypto_action: CryptoAction,
                        include_soft_deleted: bool, day):
     name, import_save_location, temp_save_location, import_mode, id_field_name, delimiter, hard_delete_in_years, \
-        enforce_data_model, is_apply_year_to_save_location, report_save_location = \
+        enforce_data_model, is_apply_year_to_save_location, report_save_location, _ = \
         get_scenario_defaults(scenario_json_path)
 
     partition_name, year = get_day_partition_name_and_year(day)
@@ -110,7 +110,7 @@ def get_reporting_data(spark_session: SparkSession, scenario_json_path: str,
 
 def hard_delete(spark_session: SparkSession, scenario_json_path):
     name, import_save_location, temp_save_location, import_mode, id_field_name, delimiter, hard_delete_in_years, \
-        enforce_data_model, is_apply_year_to_save_location, report_save_location = \
+        enforce_data_model, is_apply_year_to_save_location, report_save_location, _ = \
         get_scenario_defaults(scenario_json_path)
 
     logger.info(f'Active action: Hard delete for {name} entity defined in {scenario_json_path}')
@@ -118,7 +118,7 @@ def hard_delete(spark_session: SparkSession, scenario_json_path):
 
     x_years_ago = datetime.now() - relativedelta(years=hard_delete_in_years)
     folder_years_less_than_x = [] if is_iceberg_storage() else \
-        hdfs_get_folder_years_less_than(spark_session, import_save_location, x_years_ago.year)
+        filesystem_get_folder_years_less_than(spark_session, import_save_location, x_years_ago.year)
     all_data = None
     if is_iceberg_storage():
         all_data = read_storage(spark_session, import_save_location)
@@ -134,7 +134,7 @@ def hard_delete(spark_session: SparkSession, scenario_json_path):
                 all_data = read_spark_parquet(spark_session, f'{import_save_location}_{year}')
 
     if all_data is None or all_data.isEmpty():
-        logger.error(f'No data found')
+        logger.error('No data found')
         exit(1)
 
     all_data = all_data.withColumn(
@@ -153,7 +153,7 @@ def hard_delete(spark_session: SparkSession, scenario_json_path):
                 f'{str(soft_deleted_data.count())}')
     spark_session.sparkContext.setJobDescription(f'Hard delete for {name} - exclude soft deleted')
     new_data = all_data.exceptAll(soft_deleted_data)
-    logger.info(f'Overwriting partitions')
+    logger.info('Overwriting partitions')
 
     spark_session.sparkContext.setJobDescription(f'Hard delete for {name} - overwrite partitions')
     if is_iceberg_storage():
@@ -177,13 +177,13 @@ def hard_delete(spark_session: SparkSession, scenario_json_path):
                 ParquetSaveMode.overwrite, DAY_PARTITION_FIELD_NAME)
             logger.info(f'Raw Parquet saved into {import_save_location}_{year} with overwrite for hard delete')
 
-    hdfs_delete(spark_session, temp_save_location)
+    filesystem_delete(spark_session, temp_save_location)
     logger.info(f'{temp_save_location} is cleaned up')
 
 
 def soft_delete(spark_session: SparkSession, scenario_json_path, id_values_to_soft_delete):
     name, import_save_location, temp_save_location, import_mode, id_field_name, delimiter, hard_delete_in_years, \
-        enforce_data_model, is_apply_year_to_save_location, report_save_location = \
+        enforce_data_model, is_apply_year_to_save_location, report_save_location, _ = \
         get_scenario_defaults(scenario_json_path)
 
     scenario = load_scenario(scenario_json_path)
@@ -201,14 +201,13 @@ def soft_delete(spark_session: SparkSession, scenario_json_path, id_values_to_so
     elif not is_apply_year_to_save_location:
         found_in_parquets = read_spark_parquet(spark_session, import_save_location)
     else:
-        for directory in hdfs_get_folder_names(spark_session, import_save_location):
+        for folder_path in filesystem_get_partitioned_folder_paths(spark_session, import_save_location):
             if found_in_parquets is not None and not found_in_parquets.isEmpty():
-                u_data = read_spark_parquet(spark_session, f'{settings.default_data_location}/{directory}')
+                u_data = read_spark_parquet(spark_session, folder_path)
                 if not u_data.isEmpty():
                     found_in_parquets = found_in_parquets.union(u_data)
             else:
-                found_in_parquets = read_spark_parquet(spark_session,
-                                                       f'{settings.default_data_location}/{directory}')
+                found_in_parquets = read_spark_parquet(spark_session, folder_path)
 
     if found_in_parquets is None or found_in_parquets.isEmpty():
         logger.error(f'No data found in {import_save_location}')
@@ -274,7 +273,7 @@ def soft_delete(spark_session: SparkSession, scenario_json_path, id_values_to_so
                 ParquetSaveMode.overwrite, DAY_PARTITION_FIELD_NAME)
             logger.info(f'Raw Parquet saved into {import_save_location}_{year} with overwrite')
 
-    hdfs_delete(spark_session, temp_save_location)
+    filesystem_delete(spark_session, temp_save_location)
     logger.info(f'{temp_save_location} is cleaned up')
 
 
@@ -282,7 +281,8 @@ def encrypt_and_import(spark_session: SparkSession,
                        scenario_json_path: str, input_file_path: str,
                        day: str):
     name, import_save_location, temp_save_location, import_mode, id_field_name, delimiter, hard_delete_in_years, \
-        enforce_data_model, is_apply_year_to_save_location, report_save_location = \
+        enforce_data_model, is_apply_year_to_save_location, report_save_location, \
+        delete_input_file_after_import = \
         get_scenario_defaults(scenario_json_path)
 
     partition_name, year = get_day_partition_name_and_year(day)
@@ -331,3 +331,8 @@ def encrypt_and_import(spark_session: SparkSession,
     write_storage(encrypted_df, storage_location, ParquetSaveMode(import_mode), DAY_PARTITION_FIELD_NAME)
     logger.info(f'Save as {storage_description()} finished with partition day={partition_name} '
                 f'Import mode: {import_mode}')
+
+    if delete_input_file_after_import:
+        spark_session.sparkContext.setJobDescription(f'Encrypt & import for {name} - delete input file')
+        delete_input_file(spark_session, input_file_path)
+        logger.info(f'Input file permanently deleted after successful import: {input_file_path}')

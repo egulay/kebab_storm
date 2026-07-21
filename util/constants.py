@@ -10,8 +10,6 @@ CLI_INCLUDE_SOFT_DELETED = 'cli_include_soft_deleted'
 
 STANDALONE = 'local[*]'
 
-BS = 16
-
 DAY_PARTITION_FIELD_NAME = 'day'
 SOFT_DELETED_FIELD_NAME = 'SOFT_DELETED'
 DATE_IMPORTED_FIELD_NAME = 'DATE_IMPORTED'
@@ -35,6 +33,7 @@ SCENARIO_IMPORT_SAVE_LOCATION = 'import_save_location'
 SCENARIO_REPORT_SAVE_LOCATION = 'report_save_location'
 SCENARIO_ENTITY_NAME = 'entity_name'
 SCENARIO_IMPORT_MODE = 'import_mode'
+SCENARIO_DELETE_INPUT_FILE_AFTER_IMPORT = 'delete_input_file_after_import'
 SCENARIO_HARD_DELETE_CONDITION_IN_YEARS = 'hard_delete_condition_in_years'
 SCENARIO_ENFORCE_DATA_MODEL = 'enforce_data_model'
 SCENARIO_IS_APPLY_YEAR_TO_SAVE_LOCATION = 'is_apply_year_to_save_location'

@@ -27,7 +27,7 @@ def main():
 
 
 def set_args():
-    parser = argparse.ArgumentParser(description='KebabStorm: A Spark driver for to demonstrate how to apply '
+    parser = argparse.ArgumentParser(description='Kebab Storm: A Spark driver demonstrating how to apply '
                                                  'cryptography (with AES) on UDF level with data quality checks based '
                                                  'on ETL scenarios in JSON format')
     required_arguments = parser.add_argument_group('required arguments')
@@ -37,7 +37,7 @@ def set_args():
                                     help='Scenario JSON file path or URL', required=True)
 
     required_arguments.add_argument('--id_values', '-ids', dest=CLI_ID_VALUES, metavar='897892701,988647067',
-                                    help='Comma seperated row ID values to soft-delete', required=True)
+                                    help='Comma-separated row ID values to soft-delete', required=True)
 
     args = parser.parse_args()
     is_args_provided = None not in (args.cli_scenario_json_path, args.cli_id_values)
