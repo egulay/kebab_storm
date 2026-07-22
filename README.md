@@ -14,6 +14,29 @@ processing and produce meaningful totals, groupings, and other analytics. Anyone
 or the decryption runtime can, of course, recover the protected values; this example does not claim to protect data
 from an administrator who also controls those assets.
 
+Kebab Storm was also motivated by the role of encryption in personal-data protection. Encryption is recognized as a
+technical security measure under [Article 32 of the GDPR](https://eur-lex.europa.eu/legal-content/EN/ALL/?uri=celex%3A32016R0679),
+while official [KVKK data-security guidance](https://www.kvkk.gov.tr/Icerik/2040/Veri-Guvenligine-Iliskin-Yukumlulukler)
+similarly identifies encryption, access control, secure key management, and appropriate technical and administrative
+measures as parts of protecting personal data. Demonstrating how sensitive data can remain protected at the storage
+layer while still supporting authorized Spark processing and reporting was one of the reasons for developing this
+project.
+
+Kebab Storm does not make an organization or deployment GDPR-compliant or KVKK-compliant by itself. Compliance
+depends on the complete processing environment, including lawful processing, data minimization, retention, identity
+and access management, network security, key management, monitoring, incident response, data-subject rights, and
+organizational policies. Encrypted values also remain personal data while authorized parties can decrypt them. The
+framework should therefore be understood as a compliance-supporting technical control and reference implementation,
+not compliance certification or legal evidence.
+
+The scenario files included in this repository are demonstration examples. Because an encrypted-field definition
+contains the corresponding AES key, production scenarios must not be stored in the source repository or an
+unprotected shared filesystem. In a real deployment, complete scenarios should be stored in HashiCorp Vault—or an
+equivalent managed secrets system—and retrieved only by the authorized operating-system service identity over a
+protected HTTPS or Vault Agent path. Access to scenario contents must be audited and restricted independently from
+access to the encrypted Parquet or Iceberg data. This separation is essential: anyone who obtains both the encrypted
+dataset and its scenario keys can decrypt the protected fields.
+
 Processing behavior is described by JSON scenarios rather than hard-coded for one dataset. A scenario defines source
 and mapped field names, type conversions, encryption choices and keys, storage locations, partitioning, schema
 enforcement, and retention. The project also demonstrates data-quality handling, encrypted and decrypted reads,
