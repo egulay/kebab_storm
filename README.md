@@ -1,4 +1,5 @@
 # Kebab Storm
+
 ## Introduction
 
 Kebab Storm is a handcrafted Apache Spark project designed to demonstrate how sensitive data can be refined,
@@ -13,6 +14,14 @@ data use: the persisted dataset remains unreadable at the field level, while rep
 processing and produce meaningful totals, groupings, and other analytics. Anyone who can access the application keys
 or the decryption runtime can, of course, recover the protected values; this example does not claim to protect data
 from an administrator who also controls those assets.
+
+The repository also includes **Kebab Storm Analytics**, a Python package with a read-only public data-access API for
+data scientists using Jupyter, JupyterLab, Zeppelin, managed Spark notebooks, or ordinary PySpark applications. It lets
+an authorized analyst read a scenario from Vault and obtain a lazy Spark DataFrame without copying encryption logic or
+keys into notebook code. Analysts can leave all protected fields encrypted, decrypt only the fields required for an
+analysis, or apply all decryption declared by the scenario. This keeps the same scenario and encryption contract
+across ingestion, reporting, and interactive analytics. Platform permissions—not the Python package—must enforce
+storage immutability and prevent unauthorized data access or export.
 
 Kebab Storm was also motivated by the role of encryption in personal-data protection. Encryption is recognized as a
 technical security measure under [Article 32 of the GDPR](https://eur-lex.europa.eu/legal-content/EN/ALL/?uri=celex%3A32016R0679),
@@ -46,120 +55,22 @@ period.
 **This repository is a technical reference implementation, not a turnkey production security product.** It can form
 part of a production service when the surrounding platform supplies secure identity, secret management, authorization,
 auditing, monitoring, recovery, and restricted access to the Spark runtime. Those controls are deployment
-responsibilities and are intentionally outside this project.
-
-### Encryption Format
-
-Encrypted scenario fields use **AES-256-GCM**, an authenticated-encryption mode that provides confidentiality and
-detects accidental or malicious ciphertext modification. AES-256 is often marketed as “military-grade” encryption;
-the precise and more useful claim here is that Kebab Storm uses a 256-bit AES key with GCM authentication. Overall
-security still depends on key protection, operating-system controls, Spark-runtime access, configuration, and sound
-operations—not the cipher name alone.
-
-Ciphertext is produced by Spark's native `aes_encrypt` expression and stored directly in `BinaryType` columns rather
-than encoded as Base64 text. GCM uses a fresh random 12-byte initialization vector for every value and Spark prepends
-that vector to its authenticated binary output. Re-encrypting the same value therefore produces different bytes.
-Authentication failure prevents altered or incorrectly keyed values from being silently decrypted. Each encrypted
-value is also authenticated with its mapped column name as additional authenticated data, so ciphertext moved to a
-different field cannot be successfully decrypted there.
-
-Every encrypted field requires its own unique 256-bit random key, represented in scenario JSON as exactly 64
-hexadecimal characters. This encoding represents 32 random bytes without reducing their entropy. Scenario validation
-rejects malformed, shorter, longer, or reused keys. Fields with `"is_encrypted": false` omit `encryption_key`
-entirely; empty or placeholder keys are not used. In a service deployment, real keys should be delivered through the
-protected scenario/Vault path described below. Encryption and decryption run as native Spark SQL expressions inside
-the JVM execution engine, avoiding Python UDF calls and per-row scenario parsing. Spark's native AES-256-GCM binary
-format is not compatible with either the former custom AES-256-GCM envelope or the earlier AES-128-CBC/Base64 format;
-data written by either former implementation must be removed and imported again.
-
-### Service Deployment Architecture
-
-Kebab Storm can run as a controlled Spark service in a Hadoop or Cloudera environment. Apache Airflow, Apache NiFi,
-UC4, or another enterprise scheduler starts an executor under a dedicated operating-system service account. That
-identity retrieves the scenario from HashiCorp Vault over HTTPS, runs the requested import or report, and accesses
-only the storage paths and secrets assigned to it.
-
-Security integration and task scheduling are deliberately kept outside the Kebab Storm source code. The operating
-system and deployment platform own service identity, certificates, tokens, Vault authentication, process permissions,
-and Spark submission. The external orchestrator owns calendars, dependencies, and retries. Kebab Storm receives a
-scenario location and execution arguments, then performs only the requested data operation. This separation keeps the
-application small, platform-neutral, and independent of a particular secret manager or scheduling product; it is an
-architectural choice rather than missing application functionality.
-
-```mermaid
-flowchart LR
-    S["Airflow, NiFi, UC4, or another scheduler"] --> O["OS service account"]
-    O --> K["Kebab Storm Spark job"]
-    K -->|"Protected file or HTTPS request"| P["OS security layer or Vault Agent"]
-    P -->|"OS-managed identity"| V["HashiCorp Vault"]
-    V -->|"Protected secret response"| P
-    P -->|"Raw scenario JSON"| K
-    K -->|"Encrypted field values"| H["Hadoop or Cloudera storage"]
-    H -->|"Encrypted data"| K
-    K -->|"On-the-fly decryption and aggregation"| R["Authorized report output"]
-    A["Storage administrator"] -->|"Direct storage inspection"| H
-```
-
-In this model, users or administrators with storage-layer access can inspect files and partitions but cannot read the
-encrypted fields. The Spark service decrypts protected values only while executing an authorized operation. Access to
-the service account, Vault identity, Spark driver and executor processes, Spark UI, event logs, and generated report
-locations must be restricted at the operating-system and platform level. An administrator who controls that trusted
-runtime is outside this protection boundary because the runtime must receive the keys to perform decryption.
-
-#### Vault Scenario Retrieval
-
-All scenario consumers already use `load_scenario()` in [`util/scenario_util.py`](util/scenario_util.py), so Vault
-integration is isolated to that function. The remaining ETL and reporting code does not need to know whether a
-scenario came from a local file, an HTTPS service, or Vault. Retrieved scenarios still pass through the same JSON
-Schema and semantic validation before execution.
-
-The selected architecture uses an OS-managed Vault Agent or internal secret adapter, and the current HTTPS
-implementation expects that component to return the scenario JSON directly. No Python change is required when it:
-
-- Authenticates to Vault using the machine or service identity.
-- Renews its short-lived credentials outside the Spark application.
-- Exposes the authorized secret through a protected local HTTPS endpoint or renders it as a protected file.
-- Returns the scenario itself rather than the standard Vault response envelope.
-
-Vault authentication is intentionally not implemented inside Kebab Storm. Tokens and private keys are not application
-arguments, scenario properties, or scheduler parameters; the OS security layer owns them. A future direct-Vault mode
-would require changing only the URL branch of `load_scenario()` to authenticate and unwrap the Vault response, but
-that is not required for this architecture and would couple the application to Vault.
-
-After retrieval, the current implementation supplies the scenario to Spark encryption UDFs. Under this deployment
-model, the Spark runtime—including its UI and event logs—is part of the trusted service boundary and must be accessible
-only to authorized operators. If Spark administrators must also be prevented from accessing keys, the implementation
-would require a different key-handling design rather than placing encryption keys directly in the scenario.
-
-#### Task Scheduling and Orchestration
-
-Kebab Storm deliberately contains no internal scheduler. Apache Airflow, Apache NiFi, UC4, or a similar orchestration
-platform can execute the existing command-line modules through `spark-submit` or the environment's approved Spark
-submission mechanism. A typical scheduled workflow is:
-
-1. Confirm that the source data is available and complete.
-2. Run `etl.executor.import` with the secured scenario URL, input location, and logical processing date.
-3. Run the required reporting module after a successful import.
-4. Publish or transfer only the approved report output.
-5. Run `etl.executor.hard_delete` on a separate retention schedule.
-6. Record the result and notify operators when a task fails.
-
-Soft deletion is normally triggered by an approved deletion request and invokes `etl.executor.soft_delete` with the
-authorized record identifiers. Hard deletion is a periodic maintenance task that applies the retention period from the
-same scenario. Import and report dates should come from the scheduler's logical execution date so retries process the
-same partition instead of automatically switching to the retry date.
-
-The orchestrator supplies task dependencies, calendars, retries, concurrency limits, service-account selection,
-credential renewal, notifications, and operational history. Kebab Storm remains responsible for scenario validation,
-data conversion, encryption, storage, retention execution, and report generation. No Kebab Storm code change is
-required specifically for Airflow, NiFi, or UC4 integration.
+responsibilities and are intentionally outside this project. Within the documented trust model and supported Vault,
+Spark, and storage interfaces, those controls can be supplied through deployment configuration without modifying the
+Kebab Storm codebase.
 
 ## Setup (Spark & Hadoop on localhost)
+
 ### Windows
+
 Please use this [link](https://phoenixnap.com/kb/install-spark-on-windows-10).
+
 ### Mac
+
 Please use this [link](https://sparkbyexamples.com/spark/install-apache-spark-on-mac/).
-## External Dependencies (requirements.txt)
+
+### Runtime and Python Dependencies
+
 ```sh
 pyspark==4.1.1
 confuse==2.2.0
@@ -172,7 +83,9 @@ python-dateutil==2.9.0.post0
 
 The current runtime baseline is Python 3.10 or newer and Java 17 or newer. The local PySpark version must match the
 target Spark cluster version.
-## Driver Settings
+
+## Configuration
+
 All necessary Spark and solution specific settings are located in [/conf](https://github.com/egulay/kebab_storm/tree/master/conf) directory per environment.
 
 Select the runtime environment with `KEBAB_STORM_ENV`. It accepts `local`, `dev`, or `prod` and safely defaults to
@@ -259,16 +172,32 @@ stores, deletion may create a delete marker or remove only the current view, so 
 the platform administrator's responsibility. This option cannot be combined with `import_mode: "ignore"`, because an
 existing destination may cause Spark to skip the write rather than import the source file.
 
-## Features
-Executor scripts are located in [/etl/executor/](https://github.com/egulay/kebab_storm/tree/master/etl/executor) directory with the features below:
-* [Encrypt & Import](https://github.com/egulay/kebab_storm/blob/master/etl/executor/import.py)
-* [Print Imported](https://github.com/egulay/kebab_storm/blob/master/etl/executor/print_imported.py)
-* [Print Sample Data with Schema](https://github.com/egulay/kebab_storm/blob/master/etl/executor/print_sample_data_with_schema.py)
-* [Print Soft Deleted](https://github.com/egulay/kebab_storm/blob/master/etl/executor/print_soft_deleted.py)
-* [Refine & Print](https://github.com/egulay/kebab_storm/blob/master/etl/executor/refine_and_print.py)
-* [Soft Delete](https://github.com/egulay/kebab_storm/blob/master/etl/executor/soft_delete.py)
-* [Hard Delete](https://github.com/egulay/kebab_storm/blob/master/etl/executor/hard_delete.py)
-### Scenario
+## Encryption Model
+
+Encrypted scenario fields use **AES-256-GCM**, an authenticated-encryption mode that provides confidentiality and
+detects accidental or malicious ciphertext modification. AES-256 is often marketed as “military-grade” encryption;
+the precise and more useful claim here is that Kebab Storm uses a 256-bit AES key with GCM authentication. Overall
+security still depends on key protection, operating-system controls, Spark-runtime access, configuration, and sound
+operations—not the cipher name alone.
+
+Ciphertext is produced by Spark's native `aes_encrypt` expression and stored directly in `BinaryType` columns rather
+than encoded as Base64 text. GCM uses a fresh random 12-byte initialization vector for every value and Spark prepends
+that vector to its authenticated binary output. Re-encrypting the same value therefore produces different bytes.
+Authentication failure prevents altered or incorrectly keyed values from being silently decrypted. Each encrypted
+value is also authenticated with its mapped column name as additional authenticated data, so ciphertext moved to a
+different field cannot be successfully decrypted there.
+
+Every encrypted field requires its own unique 256-bit random key, represented in scenario JSON as exactly 64
+hexadecimal characters. This encoding represents 32 random bytes without reducing their entropy. Scenario validation
+rejects malformed, shorter, longer, or reused keys. Fields with `"is_encrypted": false` omit `encryption_key`
+entirely; empty or placeholder keys are not used. In a service deployment, real keys should be delivered through the
+protected scenario/Vault path described below. Encryption and decryption run as native Spark SQL expressions inside
+the JVM execution engine, avoiding Python UDF calls and per-row scenario parsing. Spark's native AES-256-GCM binary
+format is not compatible with either the former custom AES-256-GCM envelope or the earlier AES-128-CBC/Base64 format;
+data written by either former implementation must be removed and imported again.
+
+## Scenario Configuration
+
 An example JSON based scenario located in [/scenario](https://github.com/egulay/kebab_storm/blob/master/scenario/sales_records_scenario.json) directory.
 
 Every scenario is structurally validated against the Draft 2020-12 schema in
@@ -421,7 +350,18 @@ and `timestamp|%m/%d/%Y|%Y-%m-%d` are interpreted as string-to-target conversion
 }
 ```
 
-### Sales Demo Scripts
+## Features
+
+Executor scripts are located in [/etl/executor/](https://github.com/egulay/kebab_storm/tree/master/etl/executor) directory with the features below:
+* [Encrypt & Import](https://github.com/egulay/kebab_storm/blob/master/etl/executor/import.py)
+* [Print Imported](https://github.com/egulay/kebab_storm/blob/master/etl/executor/print_imported.py)
+* [Print Sample Data with Schema](https://github.com/egulay/kebab_storm/blob/master/etl/executor/print_sample_data_with_schema.py)
+* [Print Soft Deleted](https://github.com/egulay/kebab_storm/blob/master/etl/executor/print_soft_deleted.py)
+* [Refine & Print](https://github.com/egulay/kebab_storm/blob/master/etl/executor/refine_and_print.py)
+* [Soft Delete](https://github.com/egulay/kebab_storm/blob/master/etl/executor/soft_delete.py)
+* [Hard Delete](https://github.com/egulay/kebab_storm/blob/master/etl/executor/hard_delete.py)
+
+## Sales Demonstration
 
 The [`demo/sales`](demo/sales) directory contains an end-to-end sales demonstration. Run the scripts from the project
 root in numeric order:
@@ -458,12 +398,16 @@ To reset the demonstrations, run the root-level cleanup script:
 ./demo/reset.sh
 ```
 
-The script removes the shared `demo/output` and `demo/logs` directories, clearing generated sales and health import
-data, reports, and application logs. Scenario files and source CSV files are not changed. The script intentionally
-targets only the default demo directories; output locations supplied through custom environment overrides must be
-cleaned separately.
+The script removes the shared `demo/output` and `demo/logs` directories, generated Jupyter checkpoint directories
+under both the project root and `demo/notebooks`, and the labelled Kebab Storm Jupyter and Vault demo containers. This
+clears imported sales and health data, reports,
+application logs, the in-memory development Vault, and the notebook container environment. Scenario files, source CSV
+files, checked-in notebooks, source code, Docker images, and the reusable Docker network are not changed. The script
+intentionally targets only the default demo directories and labelled demo containers; output locations supplied
+through custom environment overrides must be cleaned separately. If custom container names were used during startup,
+pass the same `JUPYTER_CONTAINER` and `VAULT_CONTAINER` environment values when running the reset.
 
-#### Demonstrating Soft and Hard Delete Retention
+### Demonstrating Soft and Hard Delete Retention
 
 The sales scenario sets `hard_delete_condition_in_years` to `3`. A normal soft delete records today's date, so an
 immediately following hard delete correctly keeps the record: it has not completed its three-year retention period.
@@ -506,8 +450,10 @@ physically removes records whose `SOFT_DELETED` value is on or before the three-
 re-comment the retention-demo import and backdating blocks, then restore the active current-date lines. Otherwise,
 future soft deletes will be immediately eligible for hard deletion.
 
-### Execution
-#### Help
+## Execution Reference
+
+### Help
+
 Each executor file has help text similar to below.
 ```sh
 import.py --help
@@ -537,7 +483,7 @@ required arguments:
   --date 2020-01-01, -d 2020-01-01
                         Import date in YYYY-MM-DD format
 ```
-#### Encrypt & Import
+### Encrypt & Import
 
 The console transcripts below are retained as historical sales demonstrations. Spark versions, timestamps, conversion
 warnings, and ciphertext bytes vary in current runs. AES-256-GCM payloads use Spark's native binary representation and
@@ -569,8 +515,10 @@ import.py --scenario ../../scenario/sales_records_scenario.json --input-file ../
 2022-05-20 09:29:31,770 - etl.importer - INFO - Save as parquet finished with partition day=20200223 Import mode: append
 2022-05-20 09:29:31,771 - etl.executor - INFO - C:/Users/emreg/PycharmProjects/kebab_storm/etl/executor/import.py executed in 38.53 seconds
 ```
-#### Print Imported Data
-##### Encrypted
+### Print Imported Data
+
+#### Encrypted
+
 ```sh
 print_imported.py --scenario ../../scenario/sales_records_scenario.json --crypto-action encrypted --date 2020-02-23
 ```
@@ -630,7 +578,8 @@ only showing top 20 rows
 
 Total Count: 50000
 ```
-##### Decrypted
+#### Decrypted
+
 ```sh
 print_imported.py --scenario ../../scenario/sales_records_scenario.json --crypto-action decrypted --date 2020-02-23
 ```
@@ -691,8 +640,10 @@ only showing top 20 rows
 
 Total Count: 50000
 ```
-#### Report Generation from Imported Data
-##### Create
+### Report Generation from Imported Data
+
+#### Create
+
 An example report implementation located in [/reporter/simple_sales_report](https://github.com/egulay/kebab_storm/blob/master/reporter/simple_sales_report/create_simple_sales_report.py) directory.
 ```sh
 create_simple_sales_report.py --scenario ../../scenario/sales_records_scenario.json --include-soft-deleted nope --date 2020-02-23
@@ -717,7 +668,8 @@ create_simple_sales_report.py --scenario ../../scenario/sales_records_scenario.j
 2022-05-20 09:50:24,219 - reporter - INFO - Save as parquet finished with partition day=20220520
 2022-05-20 09:50:24,220 - reporter - INFO - C:/Users/emreg/PycharmProjects/kebab_storm/reporter/simple_sales_report/create_simple_sales_report.py executed in 32.35 seconds
 ```
-#### Print Report
+### Print Report
+
 An example report printer located in [reporter/simple_sales_report](https://github.com/egulay/kebab_storm/blob/master/reporter/simple_sales_report/print_simple_sales_report.py) directory.
 ```sh
 print_simple_sales_report.py  --scenario ../../scenario/sales_records_scenario.json --date 2022-05-20
@@ -765,7 +717,324 @@ only showing top 20 rows
 
 Total Count: 185
 ```
-### License
+
+## Kebab Storm Analytics for Data Scientists
+
+[`kebab-storm-analytics`](packages/kebab_storm_analytics) gives data scientists a controlled analytical entry point to
+datasets imported by Kebab Storm. It is a Python package rather than a special Jupyter plugin, so the same API works in
+a local Jupyter notebook, a shared notebook service, or a scheduled PySpark analysis.
+
+**The included Docker/Jupyter launcher is strictly a local demonstration and must not be used with real or production
+data.** It is not a deployment template. The package can be considered for a governed platform only with the external
+controls listed under
+[Production Deployment Path and Security Boundaries](#production-deployment-path-and-security-boundaries).
+
+Without this package, each analyst would need to understand storage paths, year partitions, scenario validation,
+AES-GCM parameters, additional authenticated data, keys, and Spark type restoration. The package keeps those details
+behind one `read_dataset()` operation:
+
+1. Retrieve the selected JSON scenario from HashiCorp Vault KV v2.
+2. Validate its structure and encryption metadata before reading data.
+3. Locate its Parquet paths or Iceberg table.
+4. Exclude soft-deleted rows and apply optional import-date filters.
+5. Return a lazy Spark DataFrame with the requested decryption policy.
+
+The result remains a normal Spark DataFrame. Data scientists can use standard Spark transformations, SQL, grouping,
+aggregation, feature preparation, and visualization libraries without learning a separate analytical API.
+
+### Read Modes
+
+| Requested mode | Python arguments | Result |
+| --- | --- | --- |
+| Encrypted, default | `read_dataset(spark)` | Protected scenario fields remain binary. |
+| Selective decryption | `crypto_action="decrypted"` with `decrypt_columns=[...]` | Only the named mapped fields become plaintext. |
+| Scenario-directed decryption | `crypto_action="decrypted"` without `decrypt_columns` | Every field marked `is_encrypted: true` is decrypted and restored to its declared Spark type. |
+
+Selective decryption is the recommended mode for normal analytical work because it limits the amount of plaintext
+introduced into the Spark execution environment.
+
+### Notebook Example
+
+The notebook platform should supply `VAULT_ADDR`, a short-lived `VAULT_TOKEN`, `KEBAB_STORM_SCENARIO_SECRET`, the data
+location, and the storage provider as service environment variables. They do not need to be copied into notebook
+cells. Explicit parameters are also supported when a platform integration requires them:
+
+```python
+import os
+
+from pyspark.sql import SparkSession, functions as F
+from kebab_storm_analytics import read_dataset
+
+spark = SparkSession.builder.appName("Protected Health Analytics").getOrCreate()
+
+health = read_dataset(
+    spark,
+    vault_addr=os.environ["VAULT_ADDR"],
+    vault_token=os.environ["VAULT_TOKEN"],
+    vault_secret=os.environ["KEBAB_STORM_SCENARIO_SECRET"],
+    data_location=os.environ["KEBAB_STORM_DATA_LOCATION"],
+    crypto_action="decrypted",
+    decrypt_columns=["BIOLOGICAL_SEX", "GLUCOSE_LEVEL"],
+    include_soft_deleted=False,
+)
+
+health.groupBy("BIOLOGICAL_SEX").agg(
+    F.count("*").alias("PATIENT_COUNT"),
+    F.round(F.avg("GLUCOSE_LEVEL"), 1).alias("AVERAGE_GLUCOSE"),
+).show()
+```
+
+When the platform has supplied the environment variables, the same analytical request is simply:
+
+```python
+health = read_dataset(
+    spark,
+    crypto_action="decrypted",
+    decrypt_columns=["BIOLOGICAL_SEX", "GLUCOSE_LEVEL"],
+)
+```
+
+The [Kebab Storm Analytics package guide](packages/kebab_storm_analytics/README.md) is the detailed API reference. It
+contains complete examples for environment-based configuration, selective and full decryption, date filters,
+soft-deleted rows, Parquet, Iceberg, Vault namespaces, and the local Docker environment.
+
+### Demonstration Screenshots
+
+These screenshots use only the repository's synthetic local demonstration data. An ordinary Jupyter notebook can
+import the analytics package, selectively decrypt only the required fields, and use the returned Spark DataFrame for
+aggregate analysis:
+
+![Selective health-data decryption and aggregation](screen_captures/Screenshot%202026-07-22%20at%2019.30.33.png)
+
+The complete demonstration notebook receives its Vault and storage configuration from the container environment. Its
+default encrypted read keeps protected scenario fields as binary columns:
+
+![Vault-backed notebook configuration and encrypted DataFrame schema](screen_captures/Screenshot%202026-07-22%20at%2019.30.46.png)
+
+The same selectively decrypted DataFrame can feed a standard Spark ML pipeline without exposing patient names,
+identifiers, insurance values, or contact details:
+
+![Spark ML regression pipeline using selectively decrypted glucose data](screen_captures/Screenshot%202026-07-22%20at%2019.31.10.png)
+
+The final notebook output evaluates the illustrative regression with actual-versus-predicted and residual plots. The
+synthetic model is a technical demonstration and has no clinical meaning:
+
+![Spark ML regression evaluation charts](screen_captures/Screenshot%202026-07-22%20at%2019.31.33.png)
+
+### Read-Only Boundary
+
+The SDK exposes no import, write, update, soft-delete, hard-delete, or persisted-report API. It does not automatically
+collect, cache, display, or export decrypted rows. Python cannot prevent a notebook user from calling Spark write
+operations on a returned DataFrame, so the Jupyter service identity must also have read-only storage permissions and a
+read-only Vault policy. The notebook user, kernel, Spark runtime, UI, event logs, and any displayed decrypted output
+are inside the trusted boundary.
+
+The SDK's read-only design therefore has two layers: its public API provides only reading, while the notebook service
+identity must enforce read-only access to the underlying Parquet or Iceberg storage and narrowly scoped read access to
+the required Vault scenario. A notebook identity with storage write permission is not made read-only merely by using
+this package.
+
+### Production Deployment Path and Security Boundaries
+
+Kebab Storm Analytics can be deployed without changing its source code as a component of a governed production
+notebook or Spark platform. Production controls are intentionally supplied by platform configuration rather than
+embedded in the SDK. A deployment installs the package in its approved Spark runtime, supplies the existing
+environment/configuration values, and assigns the notebook identity the required Vault and storage permissions. The
+same `read_dataset()` API then works with the production services instead of the local demonstration containers.
+
+The no-code-change deployment path applies when the environment uses the SDK's existing interfaces and trust model:
+
+- HashiCorp Vault KV v2 is reachable over HTTPS and the platform supplies a valid short-lived `VAULT_TOKEN`,
+  `VAULT_ADDR`, optional `VAULT_NAMESPACE`, and authorized scenario path.
+- Data is stored as Kebab Storm raw Parquet or Iceberg and the target Spark runtime is configured with the matching
+  filesystem connectors, catalog, runtime dependencies, and storage location.
+- Access is granted at scenario/dataset level. A notebook user who receives a complete scenario is trusted and
+  authorized to request any encrypted field defined by that scenario.
+- Identity, authentication, authorization, networking, storage immutability, auditing, session management, dependency
+  governance, monitoring, and recovery are enforced by the operating system, notebook platform, Spark platform,
+  Vault, and storage service.
+
+Under these conditions, moving from the local example to a governed environment is a deployment and configuration
+task: no fork, application-code modification, custom decryption implementation, or notebook-specific plugin is
+required.
+
+The analytics package is an application component, not a complete secure notebook platform. Its `read_dataset()` API
+does not expose a write operation, but a notebook user can still call Spark's own write APIs when the platform grants
+write permission. Selective decryption is a caller choice rather than column-level authorization: an identity that can
+read the complete scenario can request every encrypted field, and arbitrary notebook code can read an environment
+token or call Vault directly. Decryption keys and plaintext necessarily enter the trusted Spark driver/executor
+boundary during authorized processing and may be exposed through notebook output, memory, debugging, Spark UI or
+event-log configuration if those surfaces are not controlled. Kebab Storm Analytics does not provide DRM, DLP,
+row-level security, column entitlements, output approval, or protection from an authorized analyst who intentionally
+extracts data.
+
+A production notebook service using the SDK must therefore be designed and approved as a separate secured deployment.
+At minimum, the surrounding platform is responsible for:
+
+- An authenticated, authorized notebook service with SSO/MFA, per-user or per-workload identity, kernel isolation,
+  session expiry, and restricted administrator access.
+- HTTPS Vault access with verified certificates, short-lived identity-based credentials or Vault Agent integration,
+  narrowly scoped per-scenario policies, renewal and revocation, and Vault audit logging. Long-lived shared tokens must
+  not be embedded in notebooks, images, shell history, or source control.
+- Read-only storage ACLs for analyst identities, separate identities for ingestion and maintenance, and independently
+  enforced access to only the required Parquet paths or Iceberg tables.
+- Private network paths, egress restrictions, protected Spark UI and event logs, encrypted transport, controlled
+  notebook output, and monitoring for unauthorized access or export.
+- Pinned and reviewed Spark, Jupyter, Python, Iceberg, and container versions with image scanning, patching, provenance,
+  resource limits, availability, backup, recovery, and incident-response procedures.
+- Organizational controls for lawful use, data minimization, retention, audit, user training, model governance, and
+  GDPR/KVKK or other applicable obligations. The SDK is not compliance certification.
+
+The SDK can participate in such an architecture, but this repository does not claim to supply or certify those
+surrounding controls. Organizations must perform their own security, privacy, operational, and legal review before
+using it with real data.
+
+An architectural or code change would be required when an organization needs a different trust model—for example,
+field-level entitlements inside one scenario, keys hidden from users who can execute arbitrary notebook code,
+HSM/KMS operations that never deliver keys to Spark, protection against intentional extraction by an authorized
+analyst, or an unsupported Vault authentication/response protocol. These are different security requirements, not
+missing steps in the supported deployment model.
+
+### Local Jupyter Demonstration
+
+HTTPS is a minimum requirement for non-demo Vault access, but it does not by itself make a deployment production
+ready. The local Docker demonstration deliberately permits HTTP and uses a Vault development root token only inside
+its demo network. Start it with:
+
+```sh
+./demo/notebooks/start_jupyter_demo.sh
+```
+
+**The supplied launcher is not the no-code production deployment described above.** It deliberately favors local
+reproducibility and visibility over operational security. It uses an HTTP in-memory Vault development server, a fixed
+development root token, a fixed Jupyter token, host-published ports, `latest` container tags, local-mode Spark, a
+writable repository mount, and demonstration keys stored in this public repository. It supplies none of the external
+production controls listed above and must never process real sensitive data.
+
+The launcher injects `VAULT_ADDR=http://kebab-storm-vault:8200` into the Jupyter container. Do not replace it with the
+fictional production hostname from a documentation example. Inside the launched demo, `read_dataset(spark)` uses the
+correct Vault address, secret path, token, storage path, and provider automatically.
+
+The script starts Vault on `8200`, stores `personal_health_records_scenario.json` under
+`secret/kebab-storm/personal-health-records`, starts JupyterLab on `8888`, exposes the active Spark UI on `4040`, mounts
+this repository, installs the analytics package in editable mode, and verifies the import. Open
+[`demo/notebooks/personal_health_analytics.ipynb`](demo/notebooks/personal_health_analytics.ipynb) from JupyterLab to run
+the health analytics example. It demonstrates encrypted reading, selective decryption, aggregation, and a Spark ML
+linear-regression visualization without requesting personal identifiers. The Docker setup is a local demonstration
+and must never be used for production data or credentials. Run `./demo/health/01_import.sh` first when `demo/output`
+does not yet contain the encrypted personal-health dataset; the notebook SDK itself never performs the import.
+
+To run the complete personal-health notebook demonstration:
+
+1. From the repository root, create the encrypted personal-health dataset if it does not already exist:
+
+   ```sh
+   ./demo/health/01_import.sh
+   ```
+
+2. Start the Vault and Jupyter containers and install the analytics package into Jupyter:
+
+   ```sh
+   ./demo/notebooks/start_jupyter_demo.sh
+   ```
+
+3. Copy the JupyterLab URL printed by the script, normally
+   `http://localhost:8888/lab?token=kebab-storm-demo-token`, and open it in a browser.
+4. In the JupyterLab file browser, open `kebab_storm`, then `demo`, then `notebooks`, and double-click
+   `personal_health_analytics.ipynb`.
+5. Run the notebook cells from top to bottom. The first code cell creates the Spark session and reads the Vault and
+   storage settings injected when the container was created. Later cells demonstrate encrypted reading, selective
+   decryption, aggregate analytics, Spark ML regression with an actual-versus-predicted chart, and scenario-directed
+   full decryption without displaying personal identifiers. The regression uses synthetic data and is a technical
+   demonstration, not a clinically meaningful model.
+
+The script prints the actual URL and token when custom port or token environment variables are used. The Spark UI is
+available at `http://localhost:4040` while the notebook's Spark session is active.
+
+## Service Deployment Architecture
+
+Kebab Storm can run as a controlled Spark service in a Hadoop or Cloudera environment. Apache Airflow, Apache NiFi,
+UC4, or another enterprise scheduler starts an executor under a dedicated operating-system service account. That
+identity retrieves the scenario from HashiCorp Vault over HTTPS, runs the requested import or report, and accesses
+only the storage paths and secrets assigned to it.
+
+Security integration and task scheduling are deliberately kept outside the Kebab Storm source code. The operating
+system and deployment platform own service identity, certificates, tokens, Vault authentication, process permissions,
+and Spark submission. The external orchestrator owns calendars, dependencies, and retries. Kebab Storm receives a
+scenario location and execution arguments, then performs only the requested data operation. This separation keeps the
+application small, platform-neutral, and independent of a particular secret manager or scheduling product; it is an
+architectural choice rather than missing application functionality.
+
+```mermaid
+flowchart LR
+    S["Airflow, NiFi, UC4, or another scheduler"] --> O["OS service account"]
+    O --> K["Kebab Storm Spark job"]
+    K -->|"Protected file or HTTPS request"| P["OS security layer or Vault Agent"]
+    P -->|"OS-managed identity"| V["HashiCorp Vault"]
+    V -->|"Protected secret response"| P
+    P -->|"Raw scenario JSON"| K
+    K -->|"Encrypted field values"| H["Hadoop or Cloudera storage"]
+    H -->|"Encrypted data"| K
+    K -->|"On-the-fly decryption and aggregation"| R["Authorized report output"]
+    A["Storage administrator"] -->|"Direct storage inspection"| H
+```
+
+In this model, users or administrators with storage-layer access can inspect files and partitions but cannot read the
+encrypted fields. The Spark service decrypts protected values only while executing an authorized operation. Access to
+the service account, Vault identity, Spark driver and executor processes, Spark UI, event logs, and generated report
+locations must be restricted at the operating-system and platform level. An administrator who controls that trusted
+runtime is outside this protection boundary because the runtime must receive the keys to perform decryption.
+
+### Vault Scenario Retrieval
+
+All scenario consumers already use `load_scenario()` in [`util/scenario_util.py`](util/scenario_util.py), so Vault
+integration is isolated to that function. The remaining ETL and reporting code does not need to know whether a
+scenario came from a local file, an HTTPS service, or Vault. Retrieved scenarios still pass through the same JSON
+Schema and semantic validation before execution.
+
+The selected architecture uses an OS-managed Vault Agent or internal secret adapter, and the current HTTPS
+implementation expects that component to return the scenario JSON directly. No Python change is required when it:
+
+- Authenticates to Vault using the machine or service identity.
+- Renews its short-lived credentials outside the Spark application.
+- Exposes the authorized secret through a protected local HTTPS endpoint or renders it as a protected file.
+- Returns the scenario itself rather than the standard Vault response envelope.
+
+Vault authentication is intentionally not implemented inside Kebab Storm. Tokens and private keys are not application
+arguments, scenario properties, or scheduler parameters; the OS security layer owns them. A future direct-Vault mode
+would require changing only the URL branch of `load_scenario()` to authenticate and unwrap the Vault response, but
+that is not required for this architecture and would couple the application to Vault.
+
+After retrieval, the current implementation supplies the scenario to native Spark encryption and decryption
+expressions. Under this deployment model, the Spark runtime—including its UI and event logs—is part of the trusted
+service boundary and must be accessible only to authorized operators. If Spark administrators must also be prevented
+from accessing keys, the implementation would require a different key-handling design rather than placing encryption
+keys directly in the scenario.
+
+### Task Scheduling and Orchestration
+
+Kebab Storm deliberately contains no internal scheduler. Apache Airflow, Apache NiFi, UC4, or a similar orchestration
+platform can execute the existing command-line modules through `spark-submit` or the environment's approved Spark
+submission mechanism. A typical scheduled workflow is:
+
+1. Confirm that the source data is available and complete.
+2. Run `etl.executor.import` with the secured scenario URL, input location, and logical processing date.
+3. Run the required reporting module after a successful import.
+4. Publish or transfer only the approved report output.
+5. Run `etl.executor.hard_delete` on a separate retention schedule.
+6. Record the result and notify operators when a task fails.
+
+Soft deletion is normally triggered by an approved deletion request and invokes `etl.executor.soft_delete` with the
+authorized record identifiers. Hard deletion is a periodic maintenance task that applies the retention period from the
+same scenario. Import and report dates should come from the scheduler's logical execution date so retries process the
+same partition instead of automatically switching to the retry date.
+
+The orchestrator supplies task dependencies, calendars, retries, concurrency limits, service-account selection,
+credential renewal, notifications, and operational history. Kebab Storm remains responsible for scenario validation,
+data conversion, encryption, storage, retention execution, and report generation. No Kebab Storm code change is
+required specifically for Airflow, NiFi, or UC4 integration.
+
+## License
 
 Copyright 2020-2026 Emre Gulay. Contact: [emre@gulay.io](mailto:emre@gulay.io).
 
@@ -780,7 +1049,7 @@ See [`NOTICE.txt`](NOTICE.txt) for copyright and license-transition information.
 received under the MIT License remain governed by the MIT terms supplied with those copies; the license change does
 not revoke rights already granted for them.
 
-#### Commercial Licensing
+### Commercial Licensing
 
 Organizations that want to provide Kebab Storm itself as a hosted or managed service, or that require terms different
 from the Elastic License 2.0, may request a separate commercial license from the copyright holder.

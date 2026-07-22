@@ -1,0 +1,28 @@
+[build-system]
+requires = ["setuptools>=77"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "kebab-storm-analytics"
+version = "0.1.0"
+description = "Read-only Spark analytics access to Kebab Storm encrypted datasets"
+readme = "README.md"
+requires-python = ">=3.10"
+license = "Elastic-2.0"
+license-files = ["LICENSE.txt"]
+authors = [
+  {name = "Emre Gulay", email = "emre@gulay.io"}
+]
+dependencies = [
+  "jsonschema>=4.26,<5"
+]
+
+[project.optional-dependencies]
+spark = ["pyspark>=3.5,<4.2"]
+test = ["pyspark==4.1.1"]
+
+[tool.setuptools.packages.find]
+where = ["src"]
+
+[tool.setuptools.package-data]
+kebab_storm_analytics = ["schema/*.json"]
