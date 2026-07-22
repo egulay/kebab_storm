@@ -27,9 +27,9 @@ def main():
 
 
 def set_args():
-    parser = argparse.ArgumentParser(description='Kebab Storm: A Spark driver demonstrating how to apply '
-                                                 'cryptography (with AES) on UDF level with data quality checks based '
-                                                 'on ETL scenarios in JSON format')
+    parser = argparse.ArgumentParser(description='Kebab Storm: A Spark driver demonstrating native Spark '
+                                                 'AES-256-GCM cryptography with data quality checks based on ETL '
+                                                 'scenarios in JSON format')
     required_arguments = parser.add_argument_group('required arguments')
 
     required_arguments.add_argument('--input-file', '-if', dest=CLI_INPUT_FILE_PATH, metavar='/path/to/input_file.csv',

@@ -1,24 +1,23 @@
-import json
 import logging
 from datetime import datetime
 
 from dateutil.relativedelta import relativedelta
 from pyspark.sql import functions as func, SparkSession
-from pyspark.sql.types import BinaryType, TimestampType, StructType, StructField, StringType
+from pyspark.sql.types import TimestampType, StructType, StructField, StringType
 
 from etl.crypter import execute_crypto_action
 from etl.refiner import validate_and_refine
 from util.constants import DAY_PARTITION_FIELD_NAME, DATE_IMPORTED_FIELD_NAME, SOFT_DELETED_FIELD_NAME, \
     YEAR_IMPORTED_FIELD_NAME
 from util.crypto.crypto_action import CryptoAction
-from util.crypto.crypto_util import generic_decrypt_udf, generic_encrypt_udf
+from util.crypto.crypto_util import decrypt_column, encrypt_column
 from util.etl_util import generic_cast_map_as, generic_soft_delete_udf, get_day_partition_name_and_year
 from util.parquet_save_mode import ParquetSaveMode
 from util.parquet_util import write_spark_parquet, read_spark_parquet, \
     filesystem_delete, filesystem_get_partitioned_folder_paths, filesystem_get_folder_years_less_than, \
     read_spark_parquets_by_dates, filesystem_path_exists, delete_input_file
 from util.scenario_util import get_scenario_defaults, get_missing_fields, get_unexpected_fields, find_mapped_as_value, \
-    load_scenario, find_field_is_encrypted
+    load_scenario, find_field_is_encrypted, find_encryption_key
 from util.storage_util import is_iceberg_storage, read_storage, read_storage_by_dates, replace_storage, \
     storage_description, write_storage
 
@@ -214,21 +213,21 @@ def soft_delete(spark_session: SparkSession, scenario_json_path, id_values_to_so
         return
 
     if is_id_field_encrypted:
+        encryption_key = find_encryption_key(scenario, mapped_id_field_name)
         spark_session.sparkContext.setJobDescription(f'Soft delete for {name} - '
                                                      f'read partition with cryptography')
         data = found_in_parquets \
-            .withColumn(mapped_id_field_name, generic_decrypt_udf(
-                func.struct(mapped_id_field_name, func.lit(mapped_id_field_name),
-                        func.lit(json.dumps(scenario)))).cast(generic_cast_map_as(scenario, mapped_id_field_name)))
+            .withColumn(mapped_id_field_name, decrypt_column(
+                func.col(mapped_id_field_name), encryption_key, mapped_id_field_name
+            ).cast(generic_cast_map_as(scenario, mapped_id_field_name)))
 
         for row_value in str(id_values_to_soft_delete).strip().split(','):
             data = data.withColumn(SOFT_DELETED_FIELD_NAME, generic_soft_delete_udf(
                 func.struct(mapped_id_field_name, func.lit(row_value), SOFT_DELETED_FIELD_NAME))
                                    .cast(TimestampType()))
 
-        data = data.withColumn(mapped_id_field_name, generic_encrypt_udf(
-            func.struct(mapped_id_field_name, func.lit(mapped_id_field_name),
-                        func.lit(json.dumps(scenario)))).cast(BinaryType()))
+        data = data.withColumn(mapped_id_field_name, encrypt_column(
+            func.col(mapped_id_field_name), encryption_key, mapped_id_field_name))
 
     else:
         spark_session.sparkContext.setJobDescription(f'Soft delete for {name} - read partition')

@@ -1,15 +1,12 @@
-import json
 import logging
-from functools import reduce
 
 from pyspark.sql import DataFrame
 from pyspark.sql import functions as func
-from pyspark.sql.types import BinaryType
 
 from util.crypto.crypto_action import CryptoAction
-from util.crypto.crypto_util import generic_encrypt_udf, generic_decrypt_udf
+from util.crypto.crypto_util import decrypt_column, encrypt_column
 from util.etl_util import generic_cast_map_as
-from util.scenario_util import load_scenario, find_encrypted_fields_map_as
+from util.scenario_util import load_scenario, find_encrypted_fields_map_as, find_encryption_key
 
 logger = logging.getLogger(__name__)
 
@@ -22,14 +19,19 @@ def execute_crypto_action(source: DataFrame, scenario_json_path, action: CryptoA
         f'{action.value} will be applied to following mapped column(s): '
         f'{", ".join(map(str, columns_to_encrypt)).strip()}')
 
-    if action is CryptoAction.encrypt:
-        result = reduce(lambda x_df, col_name: x_df.withColumn(col_name, generic_encrypt_udf(
-            func.struct(col_name, func.lit(col_name), func.lit(json.dumps(scenario)))).cast(BinaryType())),
-                        columns_to_encrypt, source)
-        return result
+    encrypted_fields = set(columns_to_encrypt)
+    projected_columns = []
+    for column_name in source.columns:
+        if column_name not in encrypted_fields:
+            projected_columns.append(func.col(column_name))
+            continue
 
-    result = reduce(lambda x_df, col_name: x_df.withColumn(col_name, generic_decrypt_udf(
-        func.struct(col_name, func.lit(col_name), func.lit(json.dumps(scenario)))).cast(
-        generic_cast_map_as(scenario, col_name))), columns_to_encrypt, source)
+        encryption_key = find_encryption_key(scenario, column_name)
+        if action is CryptoAction.encrypt:
+            transformed = encrypt_column(func.col(column_name), encryption_key, column_name)
+        else:
+            transformed = decrypt_column(func.col(column_name), encryption_key, column_name).cast(
+                generic_cast_map_as(scenario, column_name))
+        projected_columns.append(transformed.alias(column_name))
 
-    return result
+    return source.select(*projected_columns)

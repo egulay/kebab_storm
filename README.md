@@ -56,17 +56,21 @@ the precise and more useful claim here is that Kebab Storm uses a 256-bit AES ke
 security still depends on key protection, operating-system controls, Spark-runtime access, configuration, and sound
 operations—not the cipher name alone.
 
-Ciphertext is stored directly in Spark `BinaryType` columns rather than encoded as Base64 text. Each value has a
-versioned binary envelope containing a format byte, a fresh 12-byte GCM nonce, a 16-byte authentication tag, and the
-ciphertext. Re-encrypting the same value therefore produces different bytes. Authentication failure prevents altered
-or incorrectly keyed values from being silently decrypted.
+Ciphertext is produced by Spark's native `aes_encrypt` expression and stored directly in `BinaryType` columns rather
+than encoded as Base64 text. GCM uses a fresh random 12-byte initialization vector for every value and Spark prepends
+that vector to its authenticated binary output. Re-encrypting the same value therefore produces different bytes.
+Authentication failure prevents altered or incorrectly keyed values from being silently decrypted. Each encrypted
+value is also authenticated with its mapped column name as additional authenticated data, so ciphertext moved to a
+different field cannot be successfully decrypted there.
 
 Every encrypted field requires its own unique 256-bit random key, represented in scenario JSON as exactly 64
 hexadecimal characters. This encoding represents 32 random bytes without reducing their entropy. Scenario validation
 rejects malformed, shorter, longer, or reused keys. Fields with `"is_encrypted": false` omit `encryption_key`
 entirely; empty or placeholder keys are not used. In a service deployment, real keys should be delivered through the
-protected scenario/Vault path described below. The AES-256-GCM binary format is not compatible with the former
-AES-128-CBC/Base64 format; data written by the former implementation must be removed and imported again.
+protected scenario/Vault path described below. Encryption and decryption run as native Spark SQL expressions inside
+the JVM execution engine, avoiding Python UDF calls and per-row scenario parsing. Spark's native AES-256-GCM binary
+format is not compatible with either the former custom AES-256-GCM envelope or the earlier AES-128-CBC/Base64 format;
+data written by either former implementation must be removed and imported again.
 
 ### Service Deployment Architecture
 
@@ -164,7 +168,6 @@ PyYAML==6.0.3
 typing-extensions==4.16.0
 validators==0.35.0
 python-dateutil==2.9.0.post0
-pycryptodome==3.23.0
 ```
 
 The current runtime baseline is Python 3.10 or newer and Java 17 or newer. The local PySpark version must match the
@@ -449,6 +452,17 @@ DEMO_IMPORT_DATE=2026-08-01 ./demo/sales/04_create_report.sh
 `05_print_report.sh` uses the current date because reports are partitioned by their creation date. Override
 `DEMO_REPORT_DATE` when printing a report created on another day.
 
+To reset the demonstrations, run the root-level cleanup script:
+
+```sh
+./demo/reset.sh
+```
+
+The script removes the shared `demo/output` and `demo/logs` directories, clearing generated sales and health import
+data, reports, and application logs. Scenario files and source CSV files are not changed. The script intentionally
+targets only the default demo directories; output locations supplied through custom environment overrides must be
+cleaned separately.
+
 #### Demonstrating Soft and Hard Delete Retention
 
 The sales scenario sets `hard_delete_condition_in_years` to `3`. A normal soft delete records today's date, so an
@@ -509,9 +523,8 @@ usage: import.py [-h] --scenario /path/to/scenario.json OR
                  https://domain.com/scenario-id --input-file
                  /path/to/input_file.csv --date 2020-01-01
 
-Kebab Storm: A Spark driver demonstrating how to apply cryptography (with
-AES-256-GCM) on UDF level with data quality checks based on ETL scenarios in JSON
-format
+Kebab Storm: A Spark driver demonstrating native Spark AES-256-GCM cryptography
+with data quality checks based on ETL scenarios in JSON format
 
 optional arguments:
   -h, --help            show this help message and exit
@@ -527,8 +540,8 @@ required arguments:
 #### Encrypt & Import
 
 The console transcripts below are retained as historical sales demonstrations. Spark versions, timestamps, conversion
-warnings, and ciphertext bytes vary in current runs. AES-256-GCM payloads now begin with the `01` format-version byte
-and are not Base64 encoded.
+warnings, and ciphertext bytes vary in current runs. AES-256-GCM payloads use Spark's native binary representation and
+are not Base64 encoded.
 
 ```sh
 import.py --scenario ../../scenario/sales_records_scenario.json --input-file ../../data/50k_sales_records_corrupted.csv --date 2020-02-23
@@ -754,7 +767,7 @@ Total Count: 185
 ```
 ### License
 
-Copyright 2020-2026 Emre Gulay.
+Copyright 2020-2026 Emre Gulay. Contact: [emre@gulay.io](mailto:emre@gulay.io).
 
 The current version of Kebab Storm is source-available under the
 [Elastic License 2.0](LICENSE.txt). It may be downloaded, used, modified, and redistributed subject to that license.

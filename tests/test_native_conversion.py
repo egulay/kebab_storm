@@ -1,15 +1,17 @@
 import unittest
-import json
 import os
 import sys
 import time
 from datetime import date, datetime
 from decimal import Decimal
+from pathlib import Path
 
 from pyspark.sql import SparkSession, functions as func
 from pyspark.sql.types import BinaryType
 
-from util.crypto.crypto_util import generic_decrypt_udf, generic_encrypt_udf
+from etl.crypter import execute_crypto_action
+from util.crypto.crypto_action import CryptoAction
+from util.crypto.crypto_util import decrypt_column, encrypt_column
 from util.etl_util import conversion_error_condition, native_convert, to_spark_type
 
 
@@ -100,7 +102,7 @@ class NativeConversionTest(unittest.TestCase):
                          'date|string|source_format=%Y-%m-%d|target_format=%d/%m/%Y'),
         )
 
-    def test_custom_aes_udf_keeps_binary_storage(self):
+    def test_native_aes_256_gcm_keeps_binary_storage_without_python_udf(self):
         scenario = {
             'fields': [{
                 'name': 'Secret',
@@ -112,16 +114,44 @@ class NativeConversionTest(unittest.TestCase):
             }]
         }
         source = self.spark.createDataFrame([(42,)], ['SECRET'])
-        encrypted = source.select(generic_encrypt_udf(func.struct(
-            func.col('SECRET'), func.lit('SECRET'), func.lit(json.dumps(scenario))
-        )).alias('SECRET'))
+        key = scenario['fields'][0]['encryption_key']
+        encrypted = source.select(encrypt_column(func.col('SECRET'), key, 'SECRET').alias('SECRET'))
 
         self.assertIsInstance(encrypted.schema['SECRET'].dataType, BinaryType)
+        plan = encrypted._jdf.queryExecution().optimizedPlan().toString()
+        self.assertNotIn('PythonUDF', plan)
 
-        decrypted = encrypted.select(generic_decrypt_udf(func.struct(
-            func.col('SECRET'), func.lit('SECRET'), func.lit(json.dumps(scenario))
-        )).cast(to_spark_type(scenario['fields'][0]['type'])).alias('SECRET')).first()['SECRET']
+        decrypted = encrypted.select(decrypt_column(func.col('SECRET'), key, 'SECRET')
+                                     .cast(to_spark_type(scenario['fields'][0]['type']))
+                                     .alias('SECRET')).first()['SECRET']
         self.assertEqual(42, decrypted)
+
+    def test_native_aes_256_gcm_uses_random_iv_and_authenticates_column_name(self):
+        key = '0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef'
+        source = self.spark.createDataFrame([('highly sensitive',), ('highly sensitive',)], ['SECRET'])
+        encrypted = [row['SECRET'] for row in source.select(
+            encrypt_column(func.col('SECRET'), key, 'SECRET').alias('SECRET')
+        ).collect()]
+
+        self.assertNotEqual(encrypted[0], encrypted[1])
+        self.assertNotIn(b'highly sensitive', encrypted[0])
+
+        encrypted_df = self.spark.createDataFrame([(encrypted[0],)], ['SECRET'])
+        with self.assertRaisesRegex(Exception, 'Tag mismatch'):
+            encrypted_df.select(decrypt_column(func.col('SECRET'), key, 'DIFFERENT_COLUMN')).collect()
+
+    def test_scenario_crypto_action_round_trip_uses_native_projection(self):
+        scenario_path = str(Path(__file__).resolve().parents[1] / 'scenario' / 'sales_records_scenario.json')
+        source = self.spark.createDataFrame([(123, 'plain')], ['ORDERID', 'SALESCHANNEL'])
+
+        encrypted = execute_crypto_action(source, scenario_path, CryptoAction.encrypt)
+        self.assertIsInstance(encrypted.schema['ORDERID'].dataType, BinaryType)
+        self.assertNotIsInstance(encrypted.schema['SALESCHANNEL'].dataType, BinaryType)
+        self.assertNotIn('PythonUDF', encrypted._jdf.queryExecution().optimizedPlan().toString())
+
+        decrypted = execute_crypto_action(encrypted, scenario_path, CryptoAction.decrypt).first()
+        self.assertEqual(123, decrypted['ORDERID'])
+        self.assertEqual('plain', decrypted['SALESCHANNEL'])
 
 
 if __name__ == '__main__':
